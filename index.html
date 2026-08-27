@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Document</title>
+</head>
+<body>
+  <img src="./map.png" alt="" width="100%" height="100%">
+  <img src="./costume1.png" alt="" style="position: absolute; left: 500px; top: 300px; height: 50px;">
+  <div style="min-width: 300px; min-height: calc(100vh - 30px); background-color: #373737; position: absolute; left: 10px; top: 10px; border-radius: 10px;"></div>
+  
+  <h2 style="position: absolute; top: 20px; left: 100px; color: white; font-family: 'Courier New', Courier, monospace;">RESQTRACK</h2>
+  
+  <img src="./costume2 (1).png" alt="" width="50px" style="position: absolute; left: 20px; top: 20px;">
+  <button style="position: absolute; width: 50px; height: 50px; top: 20px; left: 250px; color: white; font-family: 'Courier New', Courier, monospace; color: black; text-align: center;">≣</button>
+
+  <button style="position: absolute; width: 250px; border-radius: 20px; height: 50px; top: 200px; left: 40px; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #272727; text-align: center;"  onclick="helloworld()">
+    <h2>Xe 1</h2>
+  </button>
+  <button style="position: absolute; width: 250px; border-radius: 20px; height: 50px; top: 270px; left: 40px; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #272727; text-align: center;" onclick="hello2()">
+    <h2>Xe 2</h2>
+  </button>
+  <button style="position: absolute; border-radius: 20px; width: 250px; height: 50px; top: 340px; left: 40px; color: white; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #272727; text-align: center;" onclick="hello3()">
+    <h2>Xe 3</h2>
+  </button>
+
+
+  
+
+  <div style="min-width: 300px; min-height: 300px; background-color: #373737; z-index: 3; position: absolute; right: 10px; bottom: 10px; border-radius: 10px; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; color: white;" id="hello">
+    <h2 style="margin-left: 20px;" id="ll">Thông tin Xe 1</h2>
+    <div name="" id="" style="width: 250px; height: 200px; margin: 25px; background-color: #272727; color: white;">
+      <h4>Sẵn sàng</h4>
+      <h4>khoảng cách: 2KM</h4>
+      <h4>     Thời gian: 3 phút</h4> 
+      Số Điện Thoại: 09xxxx
+      Đồ dùng:
+      Bình OXY
+    </div>
+  </div>
+
+  <img src="./output-onlinepngtools.png" alt="" style="position: absolute; left: 550px; top: 550px; height: 50px;">
+  <img src="./output-onlinepngtools.png" alt="" style="position: absolute; left: 750px; top: 350px; height: 50px;">
+  <img src="./output-onlinepngtools.png" alt="" style="position: absolute; left: 850px; top: 550px; height: 50px;">
+
+  <script>
+    function helloworld() {
+       document.getElementById("ll").innerText = "Thông tin Xe 1";
+      if ( document.getElementById("hello").style.display=="none") {
+        document.getElementById("hello").style.display = "block";
+
+      } else {
+        document.getElementById("hello").style.display = "none";
+
+      }
+    }
+
+    function hello2() {
+       document.getElementById("ll").innerText = "Thông tin Xe 2";
+      if ( document.getElementById("hello").style.display=="none") {
+        document.getElementById("hello").style.display = "block";
+
+      } else {
+        document.getElementById("hello").style.display = "none";
+
+      }
+    }
+    function hello3() {
+       document.getElementById("ll").innerText = "Thông tin Xe 3";
+      if ( document.getElementById("hello").style.display=="none") {
+        document.getElementById("hello").style.display = "block";
+
+      } else {
+        document.getElementById("hello").style.display = "none";
+
+      }
+    }
+  </script>
+
+  <style>
+    html {
+      background-color: black;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      display: block;
+    }
+    body {
+      padding: 0;
+      margin: 0;
+      width: 100%;
+      height: 100%;
+    }
+  </style>
+  
+</body>
+</html>
