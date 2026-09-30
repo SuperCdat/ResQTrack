@@ -1,0 +1,38 @@
+html {
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family:'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: black;
+  display: block;
+  margin: 0;
+  padding: 0;
+}
+
+
+
+
+
+#map {
+  width: 100vw;
+  height: 100vh;
+}
+
+button {
+  z-index: 1001;
+  position: absolute;
+}
+
+#mainmenu {
+  z-index: 1001;
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 250px;
+  height: 100vh;
+  background-color: rgba(0, 0, 0, 0);
+  backdrop-filter: blur(10px);
+}

@@ -1,2 +1,3 @@
 # ResQTrack
-Ambulance mapping and finding system.
+
+Finding an ambulance near you.
