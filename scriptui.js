@@ -1,5 +1,10 @@
 function addAmblist(data) {
   let amblist = document.getElementById("amblist");
+  let ambinfoboxname = document.getElementById("ambinfoboxname");
+  let ambinfoboxphonenumber = document.getElementById("ambinfoboxphonenumber");
+
+
+
   for (let i=0; i<data.length; i++) {
     let thisdata = data[i];
     let div = document.createElement("div");
@@ -17,6 +22,8 @@ function addAmblist(data) {
 
     div.onclick = () => {
       map.flyTo(thisdata.pos, 16);
+      ambinfoboxname.innerHTML =  thisdata.name;
+      ambinfoboxphonenumber.innerHTML =  "Sđt: " + thisdata.phonenumber;
     }
   }
 }

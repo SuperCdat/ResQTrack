@@ -54,17 +54,30 @@ map.on("dblclick", (e) => {
     map.removeLayer(locaccuracy);
     loc = new L.circleMarker(e.latlng);
     map.addLayer(loc);
+    findingLocation = false;
   }
   locatingmanually = false;
 });
 
+let locfound = 0;
+let locfoundaccuracy = 0;
 function FindLocation() {
+  
+  if (locfound!=0 && !findingLocation) {
+    map.removeLayer(loc);
+    loc = new L.circleMarker(locfound).bindPopup("Bạn đang ở khoảng " + locfoundaccuracy/2 + " mét quanh điểm này").openPopup();
+    map.addLayer(loc);
+    map.flyTo(locfound, 15);
+    locaccuracy = new L.circle(locfound, locfoundaccuracy/2);
+    map.addLayer(locaccuracy);
+  }
+  
   if (findingLocation) {
     return;
   }
   
   findingLocation = true;
-  map.locate({setView: true, enableHighAccuracy: true, maxZoom: 30});
+  map.locate({setView: false, enableHighAccuracy: true, maxZoom: 30});
   
 
   map.on("locationfound", (e)=>{
@@ -72,7 +85,10 @@ function FindLocation() {
     console.log(e.latlng);
     loc = new L.circleMarker(e.latlng).bindPopup("Bạn đang ở khoảng " + e.accuracy/2 + " mét quanh điểm này").openPopup();
     map.addLayer(loc);
+    map.flyTo(e.latlng, 15);
     locaccuracy = new L.circle(e.latlng, e.accuracy/2);
     map.addLayer(locaccuracy);
+    locfound = e.latlng;
+    locfoundaccuracy = e.accuracy;
   })
 }
