@@ -1,28 +1,216 @@
 {
   "An Giang": [
     {
-      "name": "Xe 1",
-      "pos": [10.38492, 105.43296]
+      "name": "Xe 1 (Long Xuyên)",
+      "pos": [10.38492, 105.43296],
+      "phonenumber": "0296311501"
     },
     {
-      "name": "Xe 2",
-      "pos": [10.38394, 105.42498]
+      "name": "Xe 2 (Châu Đốc)",
+      "pos": [10.70012, 105.12154],
+      "phonenumber": "0296311502"
     },
     {
-      "name": "Xe 3",
-      "pos": [10.37529, 105.43768]
+      "name": "Xe 3 (Tân Châu)",
+      "pos": [10.80352, 105.23412],
+      "phonenumber": "0296311503"
+    },
+    {
+      "name": "Xe 4 (Thoại Sơn)",
+      "pos": [10.27891, 105.35123],
+      "phonenumber": "0296311504"
     }
   ],
   "Cần Thơ": [
     {
-      "name": "Xe 1",
-      "pos": [10.00047, 105.79370],
-      "phonenumber": "0900001"
+      "name": "Xe 1 (Ninh Kiều)",
+      "pos": [10.03417, 105.77944],
+      "phonenumber": "0292311501"
     },
     {
-      "name": "Xe 2",
-      "pos": [10.02312, 105.76864],
-      "phonenumber": "0900002"
+      "name": "Xe 2 (Cái Răng)",
+      "pos": [10.00047, 105.79370],
+      "phonenumber": "0292311502"
+    },
+    {
+      "name": "Xe 3 (Bình Thủy)",
+      "pos": [10.07123, 105.74211],
+      "phonenumber": "0292311503"
+    },
+    {
+      "name": "Xe 4 (Ô Môn)",
+      "pos": [10.12451, 105.62781],
+      "phonenumber": "0292311504"
+    }
+  ],
+  "Hồ Chí Minh": [
+    {
+      "name": "Xe 1 (Quận 1)",
+      "pos": [10.7769, 106.7009],
+      "phonenumber": "028311501"
+    },
+    {
+      "name": "Xe 2 (Bệnh viện Cho Rẫy - Q5)",
+      "pos": [10.7554, 106.6596],
+      "phonenumber": "028311502"
+    },
+    {
+      "name": "Xe 3 (TP Thủ Đức)",
+      "pos": [10.8494, 106.7719],
+      "phonenumber": "028311503"
+    },
+    {
+      "name": "Xe 4 (Bình Thạnh)",
+      "pos": [10.8012, 106.6984],
+      "phonenumber": "028311504"
+    }
+  ],
+  "Hà Nội": [
+    {
+      "name": "Xe 1 (Hoàn Kiếm)",
+      "pos": [21.0285, 105.8542],
+      "phonenumber": "024311501"
+    },
+    {
+      "name": "Xe 2 (Đống Đa - BV Bạch Mai)",
+      "pos": [21.0028, 105.8415],
+      "phonenumber": "024311502"
+    },
+    {
+      "name": "Xe 3 (Cầu Giấy)",
+      "pos": [21.0362, 105.7905],
+      "phonenumber": "024311503"
+    }
+  ],
+  "Đà Nẵng": [
+    {
+      "name": "Xe 1 (Hải Châu)",
+      "pos": [16.0678, 108.2208],
+      "phonenumber": "0236311501"
+    },
+    {
+      "name": "Xe 2 (Thanh Khê)",
+      "pos": [16.0612, 108.1884],
+      "phonenumber": "0236311502"
+    },
+    {
+      "name": "Xe 3 (Sơn Trà)",
+      "pos": [16.0911, 108.2415],
+      "phonenumber": "0236311503"
+    }
+  ],
+  "Bangkok": [
+    {
+      "name": "Ambulance 1 (Phra Nakhon)",
+      "pos": [13.7563, 100.5018],
+      "phonenumber": "+661669"
+    },
+    {
+      "name": "Ambulance 2 (Siam)",
+      "pos": [13.7462, 100.5347],
+      "phonenumber": "+661669"
+    },
+    {
+      "name": "Ambulance 3 (Sukhumvit)",
+      "pos": [13.7381, 100.5602],
+      "phonenumber": "+661669"
+    }
+  ],
+  "Tokyo": [
+    {
+      "name": "Ambulance 1 (Shinjuku)",
+      "pos": [35.6938, 139.7034],
+      "phonenumber": "+81119"
+    },
+    {
+      "name": "Ambulance 2 (Shibuya)",
+      "pos": [35.6580, 139.7016],
+      "phonenumber": "+81119"
+    },
+    {
+      "name": "Ambulance 3 (Chiyoda)",
+      "pos": [35.6940, 139.7538],
+      "phonenumber": "+81119"
+    }
+  ],
+  "Singapore": [
+    {
+      "name": "Medic 1 (Central)",
+      "pos": [1.2868, 103.8545],
+      "phonenumber": "+65995"
+    },
+    {
+      "name": "Medic 2 (Jurong East)",
+      "pos": [1.3329, 103.7436],
+      "phonenumber": "+65995"
+    },
+    {
+      "name": "Medic 3 (Changi)",
+      "pos": [1.3644, 103.9915],
+      "phonenumber": "+65995"
+    }
+  ],
+  "Paris": [
+    {
+      "name": "SAMU Unit 1 (Centre)",
+      "pos": [48.8566, 2.3522],
+      "phonenumber": "+3315"
+    },
+    {
+      "name": "SAMU Unit 2 (Montmartre)",
+      "pos": [48.8867, 2.3431],
+      "phonenumber": "+3315"
+    },
+    {
+      "name": "SAMU Unit 3 (Tour Eiffel)",
+      "pos": [48.8584, 2.2945],
+      "phonenumber": "+3315"
+    }
+  ],
+  "London": [
+    {
+      "name": "LAS Unit 1 (Westminster)",
+      "pos": [51.4975, -0.1357],
+      "phonenumber": "+44999"
+    },
+    {
+      "name": "LAS Unit 2 (City of London)",
+      "pos": [51.5127, -0.0918],
+      "phonenumber": "+44999"
+    },
+    {
+      "name": "LAS Unit 3 (Camden)",
+      "pos": [51.5390, -0.1426],
+      "phonenumber": "+44999"
+    }
+  ],
+  "New York": [
+    {
+      "name": "FDNY EMS 1 (Manhattan)",
+      "pos": [40.7589, -73.9851],
+      "phonenumber": "+1911"
+    },
+    {
+      "name": "FDNY EMS 2 (Brooklyn)",
+      "pos": [40.6782, -73.9442],
+      "phonenumber": "+1911"
+    },
+    {
+      "name": "FDNY EMS 3 (Queens)",
+      "pos": [40.7282, -73.7949],
+      "phonenumber": "+1911"
+    }
+  ],
+  "Sydney": [
+    {
+      "name": "NSW Ambulance 1 (CBD)",
+      "pos": [-33.8688, 151.2093],
+      "phonenumber": "+61000"
+    },
+    {
+      "name": "NSW Ambulance 2 (Paramatta)",
+      "pos": [-33.8150, 151.0011],
+      "phonenumber": "+61000"
     }
   ]
 }

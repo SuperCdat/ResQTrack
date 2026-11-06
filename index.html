@@ -4,49 +4,57 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
   <link rel="stylesheet" href="style.css">
-  <title>ResQTrack</title>
+  <title>ResQTrack - Emergency Dispatch</title>
+  
 </head>
 <body>
+  <!-- Map Layer -->
   <div id="map"></div>
-  <button id="zoomin" onclick="ZoomIn()" style="width: 30px; height: 30px; background-color: aqua; right: 15px; bottom: 65px;">zoom in</button>
-  <button id="zoomout" onclick="ZoomOut()" style="width: 30px; height: 30px; background-color: aqua; right: 15px; bottom: 30px;">zoom out</button>
 
-  <div id="mainmenu">
-    <h2 style="width: calc(100% - 20px); position: absolute; top: 20px; left: 10px; text-align: center; margin: 0;">ResQTrack</h2>
-    
-    <p style="width: calc(100% - 20px); position: absolute; top: 120px; left: 10px; text-align: left; margin: 0;">Các xe cứu thương sẵn sàng:</p>
-    <div id="amblist" style="display: flex; background-color: black; height: calc(100% - 200px); width: calc(100% - 20px); position: absolute; top: 150px; left: 10px; flex-wrap: wrap; align-content: start; gap: 10px;">
-
+  <!-- Main Navigation & Emergency List Sidebar -->
+  <aside id="mainmenu">
+    <div class="menu-header">
+      <h2>ResQTrack</h2>
+      <span class="live-badge">Live</span>
     </div>
+    <p class="section-title">Các xe cứu thương sẵn sàng:</p>
+    <div id="amblist"></div>
+  </aside>
+
+  <!-- Grouped Map HUD Controls (Top Right) -->
+  <div class="map-hud-controls">
+    <button id="zoomin" onclick="ZoomIn()" title="Zoom In">+</button>
+    <button id="themetoggle" onclick="ToggleTheme()" title="Toggle Theme">☀️</button>
+    <button id="zoomout" onclick="ZoomOut()" title="Zoom Out">-</button>
   </div>
 
-  <div id="locatebutton" onclick="FindLocation()" style="position: absolute; right: 10px; bottom: 200px; width: 50px; height: 50px; background-color: blue; z-index: 1001; user-select: none;">locate automatically</div>
-  <div id="locatemanualbutton" onclick="LocateManually()" style="position: absolute; right: 10px; bottom: 140px; width: 50px; height: 50px; background-color: orange; z-index: 1001; user-select: none;">locate manually</div>
-
-  <div id="ambinfobox" style="color: white; display: flex; background-color: black; height: 260px; width: 160px; padding: 20px; position: absolute; bottom: 270px; right: 10px; flex-wrap: wrap; align-content: start; gap: 10px; z-index: 1001;">
-    <h3 id="ambinfoboxname" style="margin: 0; width: 100%;"></h3>
-    <p id="ambinfoboxphonenumber" style="margin: 0; width: 100%;"></p>
+  <!-- Action Buttons HUD (Bottom Right) -->
+  <div class="action-hud-controls">
+    <button id="locatebutton" onclick="FindLocation()" class="action-btn">
+      <span>📍</span> Tự động định vị
+    </button>
+    <button id="locatemanualbutton" onclick="LocateManually()" class="action-btn secondary">
+      <span>🎯</span> Chọn thủ công
+    </button>
   </div>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  <!-- Selected Ambulance Detail Card -->
+  <div id="ambinfobox" class="info-card hidden">
+    <div class="info-card-header">
+      <h3 id="ambinfoboxname">Chọn một xe cứu thương</h3>
+      <button class="close-btn" onclick="CloseInfoBox()">✕</button>
+    </div>
+    <p id="ambinfoboxphonenumber">Sđt: ---</p>
+    <!-- New Distance & ETA Field -->
+    <p id="ambinfoboxeta" class="info-eta">⏱️ Đang tính toán đường đi...</p>
+    <a id="call-btn" href="#" class="call-action-btn" style="display: none;">📞 Gọi ngay</a>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="script.js"></script>
   <script src="scriptui.js"></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 </body>
 </html>
