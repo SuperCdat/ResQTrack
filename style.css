@@ -365,3 +365,8 @@ body.light-mode .leaflet-tile {
   color: var(--subtext-color);
   padding: 4px 0;
 }
+#langtoggle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}

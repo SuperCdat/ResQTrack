@@ -1,18 +1,12 @@
-
 /*
  * ResQTrack - scriptui.js
- * Quản lý danh sách xe cứu thương và Info Box.
- *
- * Tương thích với:
- * - script.js
- * - index.html
- * - transportationdata.json
+ * Ambulance list and Info Box management (with VI/EN support).
  */
 
 let currentAmbulanceData = [];
 
 // =====================================================
-// 1. HIỂN THỊ DANH SÁCH XE CỨU THƯƠNG
+// 1. AMBULANCE LIST
 // =====================================================
 
 function addAmblist(data) {
@@ -32,7 +26,6 @@ function addAmblist(data) {
     currentAmbulanceData = data;
     window.currentAmbulanceData = data;
 
-    // Nếu đã có vị trí xuất phát thì tính ETA sơ bộ.
     if (typeof locfound !== "undefined" && locfound) {
         calculateAllAmbulancesETA(data);
     } else {
@@ -40,26 +33,22 @@ function addAmblist(data) {
     }
 }
 
-
-// =====================================================
-// 2. CẬP NHẬT DANH SÁCH SAU KHI TÍNH ETA
-// =====================================================
-
-function updateAmbulanceListUIWithETA(calculations) {
+function updateAmbulanceListUIWithETA(calculations, preserveSelection = false) {
     if (!Array.isArray(calculations)) {
         console.error("Dữ liệu ETA không hợp lệ:", calculations);
         return;
     }
 
-    renderAmbulanceCards(calculations);
+    renderAmbulanceCards(calculations, preserveSelection);
 }
 
-
 // =====================================================
-// 3. TẠO THẺ XE CỨU THƯƠNG
+// 2. AMBULANCE CARDS
 // =====================================================
 
-function renderAmbulanceCards(data) {
+// preserveSelection: keep the selected card highlighted and its route ETA
+// (used when only the language changes).
+function renderAmbulanceCards(data, preserveSelection = false) {
     const listElement = document.getElementById("amblist");
 
     if (!listElement) {
@@ -73,15 +62,13 @@ function renderAmbulanceCards(data) {
         const emptyMessage = document.createElement("div");
 
         emptyMessage.className = "empty-message";
-        emptyMessage.textContent =
-            "Không tìm thấy xe cứu thương trong khu vực này.";
+        emptyMessage.textContent = t("empty_list");
 
         listElement.appendChild(emptyMessage);
         return;
     }
 
     data.forEach((item) => {
-        // Hỗ trợ cả dữ liệu gốc và dữ liệu đã tính ETA.
         const ambulance = item.amb || item;
 
         if (!ambulance || !Array.isArray(ambulance.pos)) {
@@ -101,19 +88,37 @@ function renderAmbulanceCards(data) {
 
         const name = document.createElement("div");
         name.className = "card-name";
-        name.textContent = ambulance.name || "Xe cứu thương";
+        name.textContent = localizeName(ambulance.name) || t("default_amb_name");
 
         const sub = document.createElement("div");
         sub.className = "card-sub";
 
-        if (
+        if (item.pending) {
+            sub.textContent = t("card_calculating");
+        } else if (
             typeof item.timeMins === "number" &&
             typeof item.distanceKm !== "undefined"
         ) {
-            sub.textContent =
-                `⚡ ${item.timeMins} phút (${item.distanceKm} km)`;
+            sub.textContent = (item.approx ? "~ " : "") + t("card_eta", {
+                min: item.timeMins,
+                km: item.distanceKm
+            });
         } else {
-            sub.textContent = "Chọn để xem thông tin và tuyến đường";
+            sub.textContent = t("card_hint");
+        }
+
+        // Restore selected state after a language change.
+        if (preserveSelection && ambulance === selectedAmbulance) {
+            card.classList.add("active");
+            activeCardElement = card;
+
+            if (lastRouteMetrics) {
+                sub.textContent = t("card_eta", {
+                    min: lastRouteMetrics.timeMins,
+                    km: lastRouteMetrics.distanceKm
+                });
+                sub.style.color = "#22c55e";
+            }
         }
 
         info.appendChild(name);
@@ -122,7 +127,6 @@ function renderAmbulanceCards(data) {
         card.appendChild(icon);
         card.appendChild(info);
 
-        // Lưu thông tin xe để xử lý khi người dùng chọn.
         card.addEventListener("click", () => {
             selectAmbulance(ambulance, card);
         });
@@ -131,9 +135,60 @@ function renderAmbulanceCards(data) {
     });
 }
 
+// =====================================================
+// 3. INFO BOX (rendered from state so it can be re-translated)
+// =====================================================
+
+function renderInfoBox() {
+    const nameElement = document.getElementById("ambinfoboxname");
+    const phoneElement = document.getElementById("ambinfoboxphonenumber");
+    const etaElement = document.getElementById("ambinfoboxeta");
+    const callButton = document.getElementById("call-btn");
+
+    const amb = selectedAmbulance;
+
+    if (nameElement) {
+        nameElement.textContent = amb
+            ? (localizeName(amb.name) || t("default_amb_name"))
+            : t("info_select_title");
+    }
+
+    if (phoneElement) {
+        if (!amb) {
+            phoneElement.textContent = t("phone_placeholder");
+        } else if (amb.phonenumber) {
+            phoneElement.textContent = t("phone_label", { phone: amb.phonenumber });
+        } else {
+            phoneElement.textContent = t("phone_none");
+        }
+    }
+
+    if (etaElement) {
+        if (!amb) {
+            etaElement.textContent = t("eta_idle");
+        } else if (lastRouteMetrics) {
+            etaElement.innerHTML = t("eta_detail", {
+                min: lastRouteMetrics.timeMins,
+                km: lastRouteMetrics.distanceKm
+            });
+        } else {
+            etaElement.textContent = t("eta_calculating");
+        }
+    }
+
+    if (callButton) {
+        if (amb && amb.phonenumber) {
+            callButton.href = "tel:" + amb.phonenumber;
+            callButton.style.display = "inline-block";
+        } else {
+            callButton.style.display = "none";
+            callButton.removeAttribute("href");
+        }
+    }
+}
 
 // =====================================================
-// 4. CHỌN XE VÀ HIỂN THỊ INFO BOX
+// 4. SELECT AMBULANCE
 // =====================================================
 
 function selectAmbulance(ambulance, cardElement) {
@@ -142,44 +197,18 @@ function selectAmbulance(ambulance, cardElement) {
         return;
     }
 
-    // Đánh dấu thẻ đang được chọn.
     document.querySelectorAll(".amb-card").forEach(card => {
         card.classList.remove("active");
     });
 
     cardElement.classList.add("active");
 
-    // Di chuyển bản đồ đến vị trí xe.
     map.flyTo(ambulance.pos, Math.max(map.getZoom(), 14));
 
-    // Cập nhật tên xe.
-    const nameElement = document.getElementById("ambinfoboxname");
+    selectedAmbulance = ambulance;
+    lastRouteMetrics = null;
+    renderInfoBox();
 
-    if (nameElement) {
-        nameElement.textContent = ambulance.name || "Xe cứu thương";
-    }
-
-    // Cập nhật số điện thoại.
-    const phoneElement = document.getElementById("ambinfoboxphonenumber");
-
-    if (phoneElement) {
-        phoneElement.textContent = ambulance.phonenumber || "Chưa có số điện thoại";
-    }
-
-    // Hiển thị nút gọi điện.
-    const callButton = document.getElementById("call-btn");
-
-    if (callButton) {
-        if (ambulance.phonenumber) {
-            callButton.href = "tel:" + ambulance.phonenumber;
-            callButton.style.display = "inline-block";
-        } else {
-            callButton.style.display = "none";
-            callButton.removeAttribute("href");
-        }
-    }
-
-    // Hiển thị Info Box.
     const infoBox = document.getElementById("ambinfobox");
 
     if (infoBox) {
@@ -187,14 +216,6 @@ function selectAmbulance(ambulance, cardElement) {
         infoBox.style.display = "block";
     }
 
-    // Cập nhật trạng thái ETA.
-    const etaElement = document.getElementById("ambinfoboxeta");
-
-    if (etaElement) {
-        etaElement.textContent = "Đang tính toán tuyến đường...";
-    }
-
-    // Tìm đường đến xe cứu thương.
     RouteToAmbulance(
         ambulance.pos,
         ambulance.name,
@@ -202,9 +223,8 @@ function selectAmbulance(ambulance, cardElement) {
     );
 }
 
-
 // =====================================================
-// 5. ĐÓNG INFO BOX
+// 5. CLOSE INFO BOX
 // =====================================================
 
 function CloseInfoBox() {
@@ -217,8 +237,38 @@ function CloseInfoBox() {
 
     infoBox.style.display = "none";
 
-    // Bỏ trạng thái chọn trên danh sách.
+    selectedAmbulance = null;
+    lastRouteMetrics = null;
+
     document.querySelectorAll(".amb-card").forEach(card => {
         card.classList.remove("active");
     });
 }
+
+// =====================================================
+// 6. LANGUAGE REFRESH
+// =====================================================
+
+function refreshLanguageUI() {
+    applyStaticTranslations();
+    updateLangButton();
+
+    if (currentAmbulanceData.length > 0) {
+        if (typeof locfound !== "undefined" && locfound) {
+            calculateAllAmbulancesETA(currentAmbulanceData, true);
+        } else {
+            renderAmbulanceCards(currentAmbulanceData, true);
+        }
+    }
+
+    renderInfoBox();
+
+    if (typeof refreshMapTexts === "function") {
+        refreshMapTexts();
+    }
+}
+
+// Initial translation of static text.
+applyStaticTranslations();
+updateLangButton();
+renderInfoBox();

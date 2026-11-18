@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="vi">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -17,42 +17,43 @@
   <aside id="mainmenu">
     <div class="menu-header">
       <h2>ResQTrack</h2>
-      <span class="live-badge">Live</span>
+      <span class="live-badge" data-i18n="live">Trực tiếp</span>
     </div>
-    <p class="section-title">Các xe cứu thương sẵn sàng:</p>
+    <p class="section-title" data-i18n="section_title">Các xe cứu thương sẵn sàng:</p>
     <div id="amblist"></div>
   </aside>
 
   <!-- Grouped Map HUD Controls (Top Right) -->
   <div class="map-hud-controls">
-    <button id="zoomin" onclick="ZoomIn()" title="Zoom In">+</button>
-    <button id="themetoggle" onclick="ToggleTheme()" title="Toggle Theme">☀️</button>
-    <button id="zoomout" onclick="ZoomOut()" title="Zoom Out">-</button>
+    <button id="zoomin" onclick="ZoomIn()" data-i18n-title="tt_zoom_in" title="Zoom In">+</button>
+    <button id="themetoggle" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">☀️</button>
+    <button id="langtoggle" onclick="ToggleLanguage()" title="Switch language">EN</button>
+    <button id="zoomout" onclick="ZoomOut()" data-i18n-title="tt_zoom_out" title="Zoom Out">-</button>
   </div>
 
   <!-- Action Buttons HUD (Bottom Right) -->
   <div class="action-hud-controls">
     <button id="locatebutton" onclick="FindLocation()" class="action-btn">
-      <span>📍</span> Tự động định vị
+      <span>📍</span> <span data-i18n="locate_auto">Tự động định vị</span>
     </button>
     <button id="locatemanualbutton" onclick="LocateManually()" class="action-btn secondary">
-      <span>🎯</span> Chọn thủ công
+      <span>🎯</span> <span data-i18n="locate_manual">Chọn thủ công</span>
     </button>
   </div>
 
-  <!-- Selected Ambulance Detail Card -->
+  <!-- Selected Ambulance Detail Card (text is filled by scriptui.js: renderInfoBox) -->
   <div id="ambinfobox" class="info-card hidden">
     <div class="info-card-header">
-      <h3 id="ambinfoboxname">Chọn một xe cứu thương</h3>
+      <h3 id="ambinfoboxname"></h3>
       <button class="close-btn" onclick="CloseInfoBox()">✕</button>
     </div>
-    <p id="ambinfoboxphonenumber">Sđt: ---</p>
-    <!-- New Distance & ETA Field -->
-    <p id="ambinfoboxeta" class="info-eta">⏱️ Đang tính toán đường đi...</p>
-    <a id="call-btn" href="#" class="call-action-btn" style="display: none;">📞 Gọi ngay</a>
+    <p id="ambinfoboxphonenumber"></p>
+    <p id="ambinfoboxeta" class="info-eta"></p>
+    <a id="call-btn" href="#" class="call-action-btn" style="display: none;" data-i18n="call_now">📞 Gọi ngay</a>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="i18n.js"></script>
   <script src="script.js"></script>
   <script src="scriptui.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
