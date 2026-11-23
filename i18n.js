@@ -1,9 +1,3 @@
-/*
- * ResQTrack - i18n.js
- * Vietnamese / English language support.
- * Must be loaded BEFORE script.js and scriptui.js.
- */
-
 const I18N = {
   vi: {
     doc_title: "ResQTrack - Điều phối cấp cứu",
@@ -84,11 +78,8 @@ let currentLang = "vi";
 try {
   const saved = localStorage.getItem("resqtrack-lang");
   if (saved === "vi" || saved === "en") currentLang = saved;
-} catch (e) {
-  /* storage unavailable: keep default */
-}
+} catch (e) {}
 
-// Translate a key, replacing {placeholders} with params.
 function t(key, params = {}) {
   const dict = I18N[currentLang] || I18N.vi;
   let text = dict[key] !== undefined ? dict[key] : (I18N.vi[key] || key);
@@ -99,8 +90,6 @@ function t(key, params = {}) {
 
   return text;
 }
-
-// ---- Localize data values (ambulance / province names) ----
 
 const PROVINCE_EN = {
   "Cần Thơ": "Can Tho",
@@ -123,8 +112,6 @@ function localizeName(name) {
     .replace("BV Bạch Mai", "Bach Mai Hospital");
 }
 
-// ---- Apply translations to static HTML ----
-
 function applyStaticTranslations() {
   document.documentElement.lang = currentLang;
   document.title = t("doc_title");
@@ -146,16 +133,12 @@ function updateLangButton() {
   btn.title = t("tt_lang");
 }
 
-// ---- Toggle ----
-
 function ToggleLanguage() {
   currentLang = currentLang === "vi" ? "en" : "vi";
 
   try {
     localStorage.setItem("resqtrack-lang", currentLang);
-  } catch (e) {
-    /* ignore */
-  }
+  } catch (e) {}
 
   if (typeof refreshLanguageUI === "function") {
     refreshLanguageUI();

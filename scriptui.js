@@ -1,13 +1,4 @@
-/*
- * ResQTrack - scriptui.js
- * Ambulance list and Info Box management (with VI/EN support).
- */
-
 let currentAmbulanceData = [];
-
-// =====================================================
-// 1. AMBULANCE LIST
-// =====================================================
 
 function addAmblist(data) {
     const listElement = document.getElementById("amblist");
@@ -42,12 +33,6 @@ function updateAmbulanceListUIWithETA(calculations, preserveSelection = false) {
     renderAmbulanceCards(calculations, preserveSelection);
 }
 
-// =====================================================
-// 2. AMBULANCE CARDS
-// =====================================================
-
-// preserveSelection: keep the selected card highlighted and its route ETA
-// (used when only the language changes).
 function renderAmbulanceCards(data, preserveSelection = false) {
     const listElement = document.getElementById("amblist");
 
@@ -107,7 +92,6 @@ function renderAmbulanceCards(data, preserveSelection = false) {
             sub.textContent = t("card_hint");
         }
 
-        // Restore selected state after a language change.
         if (preserveSelection && ambulance === selectedAmbulance) {
             card.classList.add("active");
             activeCardElement = card;
@@ -117,7 +101,7 @@ function renderAmbulanceCards(data, preserveSelection = false) {
                     min: lastRouteMetrics.timeMins,
                     km: lastRouteMetrics.distanceKm
                 });
-                sub.style.color = "#22c55e";
+                sub.style.color = "var(--success)";
             }
         }
 
@@ -134,10 +118,6 @@ function renderAmbulanceCards(data, preserveSelection = false) {
         listElement.appendChild(card);
     });
 }
-
-// =====================================================
-// 3. INFO BOX (rendered from state so it can be re-translated)
-// =====================================================
 
 function renderInfoBox() {
     const nameElement = document.getElementById("ambinfoboxname");
@@ -187,10 +167,6 @@ function renderInfoBox() {
     }
 }
 
-// =====================================================
-// 4. SELECT AMBULANCE
-// =====================================================
-
 function selectAmbulance(ambulance, cardElement) {
     if (!ambulance || !Array.isArray(ambulance.pos)) {
         console.error("Thông tin xe không hợp lệ:", ambulance);
@@ -216,16 +192,17 @@ function selectAmbulance(ambulance, cardElement) {
         infoBox.style.display = "block";
     }
 
+    if (window.innerWidth <= 768) {
+        const menu = document.getElementById("mainmenu");
+        if (menu) menu.classList.remove("expanded");
+    }
+
     RouteToAmbulance(
         ambulance.pos,
         ambulance.name,
         cardElement
     );
 }
-
-// =====================================================
-// 5. CLOSE INFO BOX
-// =====================================================
 
 function CloseInfoBox() {
     const infoBox = document.getElementById("ambinfobox");
@@ -244,10 +221,6 @@ function CloseInfoBox() {
         card.classList.remove("active");
     });
 }
-
-// =====================================================
-// 6. LANGUAGE REFRESH
-// =====================================================
 
 function refreshLanguageUI() {
     applyStaticTranslations();
@@ -268,7 +241,6 @@ function refreshLanguageUI() {
     }
 }
 
-// Initial translation of static text.
 applyStaticTranslations();
 updateLangButton();
 renderInfoBox();

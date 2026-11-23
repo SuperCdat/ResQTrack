@@ -2,46 +2,51 @@
 <html lang="vi">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#f8fafc">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
   <link rel="stylesheet" href="style.css">
   <title>ResQTrack - Emergency Dispatch</title>
-  
 </head>
 <body>
-  <!-- Map Layer -->
   <div id="map"></div>
 
-  <!-- Main Navigation & Emergency List Sidebar -->
   <aside id="mainmenu">
-    <div class="menu-header">
+    <div class="menu-header" id="menuheader" onclick="ToggleDrawer()" role="button" tabindex="0" aria-label="Toggle ambulance list">
       <h2>ResQTrack</h2>
-      <span class="live-badge" data-i18n="live">Trực tiếp</span>
+      <div class="menu-header-right">
+        <span class="live-badge" data-i18n="live">Trực tiếp</span>
+        <span class="drawer-chevron" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="18 15 12 9 6 15"></polyline>
+          </svg>
+        </span>
+      </div>
     </div>
-    <p class="section-title" data-i18n="section_title">Các xe cứu thương sẵn sàng:</p>
-    <div id="amblist"></div>
+    <div class="menu-content">
+      <p class="section-title" data-i18n="section_title">Các xe cứu thương sẵn sàng:</p>
+      <div id="amblist"></div>
+    </div>
   </aside>
 
-  <!-- Grouped Map HUD Controls (Top Right) -->
   <div class="map-hud-controls">
     <button id="zoomin" onclick="ZoomIn()" data-i18n-title="tt_zoom_in" title="Zoom In">+</button>
-    <button id="themetoggle" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">☀️</button>
+    <button id="themetoggle" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">🌙</button>
+    <button id="satellitetoggle" onclick="ToggleSatellite()" data-i18n-title="tt_satellite" title="Satellite View">🛰️</button>
     <button id="langtoggle" onclick="ToggleLanguage()" title="Switch language">EN</button>
     <button id="zoomout" onclick="ZoomOut()" data-i18n-title="tt_zoom_out" title="Zoom Out">-</button>
   </div>
 
-  <!-- Action Buttons HUD (Bottom Right) -->
   <div class="action-hud-controls">
     <button id="locatebutton" onclick="FindLocation()" class="action-btn">
-      <span>📍</span> <span data-i18n="locate_auto">Tự động định vị</span>
+      <span class="btn-icon">📍</span> <span class="btn-label" data-i18n="locate_auto">Tự động định vị</span>
     </button>
     <button id="locatemanualbutton" onclick="LocateManually()" class="action-btn secondary">
-      <span>🎯</span> <span data-i18n="locate_manual">Chọn thủ công</span>
+      <span class="btn-icon">🎯</span> <span class="btn-label" data-i18n="locate_manual">Chọn thủ công</span>
     </button>
   </div>
 
-  <!-- Selected Ambulance Detail Card (text is filled by scriptui.js: renderInfoBox) -->
   <div id="ambinfobox" class="info-card hidden">
     <div class="info-card-header">
       <h3 id="ambinfoboxname"></h3>

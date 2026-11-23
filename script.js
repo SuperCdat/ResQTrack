@@ -1,15 +1,12 @@
-
 let locatingmanually = false;
 let findingLocation = false;
 let globalTransportData = {};
 let currentMarkers = [];
 let ambulanceIcon;
 
-// Selected ambulance state (used to re-render text when language changes)
 let selectedAmbulance = null;
 let lastRouteMetrics = null;
 
-// Dùng để nhận biết yêu cầu GPS mới nhất
 let locationRequestId = 0;
 
 function ZoomIn() {
@@ -23,7 +20,6 @@ function ZoomOut() {
 function LocateManually() {
   locatingmanually = !locatingmanually;
 
-  // Hủy hiệu lực kết quả GPS đang chờ
   locationRequestId++;
   findingLocation = false;
 
@@ -36,6 +32,13 @@ function LocateManually() {
   }
 }
 
+function ToggleDrawer() {
+  if (window.innerWidth > 768) return;
+
+  const menu = document.getElementById("mainmenu");
+  if (menu) menu.classList.toggle("expanded");
+}
+
 let mapOptions = {
   center: [10.38399, 105.43734],
   zoom: 10,
@@ -44,12 +47,68 @@ let mapOptions = {
 
 let map = new L.map("map", mapOptions);
 
-let layer = new L.TileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  attribution: "© OpenStreetMap contributors"
-});
-map.addLayer(layer);
+const OSM_TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-// Custom ambulance icon
+const SATELLITE_TILES =
+  "https://tiles.maps.eox.at/wmts" +
+  "?layer=s2cloudless-2024_3857" +
+  "&style=default" +
+  "&tilematrixset=GoogleMapsCompatible" +
+  "&Service=WMTS" +
+  "&Request=GetTile" +
+  "&Version=1.0.0" +
+  "&Format=image%2Fjpeg" +
+  "&TileMatrix={z}" +
+  "&TileCol={x}" +
+  "&TileRow={y}";
+
+const SATELLITE_ATTRIBUTION =
+  '<a href="https://s2maps.eu" target="_blank" rel="noreferrer">' +
+  "Sentinel-2 cloudless</a> by EOX IT Services GmbH " +
+  "(Contains modified Copernicus Sentinel data 2024)";
+
+const osmLayer = L.tileLayer(OSM_TILES, {
+  attribution: "© OpenStreetMap contributors",
+  maxZoom: 19
+});
+
+const satelliteLayer = L.tileLayer(SATELLITE_TILES, {
+  attribution: SATELLITE_ATTRIBUTION,
+  maxZoom: 18,
+  crossOrigin: true
+});
+
+let activeBase = "osm";
+map.addLayer(osmLayer);
+
+function ToggleSatellite() {
+  const btn = document.getElementById("satellitetoggle");
+
+  if (activeBase === "osm") {
+    map.removeLayer(osmLayer);
+    satelliteLayer.addTo(map);
+
+    activeBase = "satellite";
+    document.body.classList.add("satellite-active");
+
+    if (btn) {
+      btn.textContent = "🗺️";
+      btn.title = t("tt_map");
+    }
+  } else {
+    map.removeLayer(satelliteLayer);
+    osmLayer.addTo(map);
+
+    activeBase = "osm";
+    document.body.classList.remove("satellite-active");
+
+    if (btn) {
+      btn.textContent = "🛰️";
+      btn.title = t("tt_satellite");
+    }
+  }
+}
+
 ambulanceIcon = L.icon({
   iconUrl: './output-onlinepngtools.png',
   iconSize: [40, 40],
@@ -57,7 +116,6 @@ ambulanceIcon = L.icon({
   tooltipAnchor: [0, 20]
 });
 
-// Fetch data and initialize default view
 fetch("./transportationdata.json")
   .then(response => {
     if (!response.ok) {
@@ -78,7 +136,6 @@ fetch("./transportationdata.json")
   })
   .catch(error => console.error("Error loading transportation data:", error));
 
-// Function to render ambulances and markers for a specific province
 function loadProvinceData(provinceName) {
   if (!globalTransportData[provinceName]) return;
 
@@ -140,13 +197,11 @@ function detectClosestProvince(userLatLng) {
   return closestProvince;
 }
 
-// User location
 let loc = null;
 let locaccuracy = null;
 let locfound = 0;
 let locfoundaccuracy = 0;
 
-// Remove old location markers and accuracy circle
 function clearLocationLayers() {
   if (loc && map.hasLayer(loc)) {
     map.removeLayer(loc);
@@ -160,11 +215,9 @@ function clearLocationLayers() {
   locaccuracy = null;
 }
 
-// Update user's selected location
 function setUserLocation(latlng, accuracy = null) {
   clearLocationLayers();
 
-  // Starting point changed: old route and ETA are no longer valid
   if (routingControl) {
     map.removeControl(routingControl);
     routingControl = null;
@@ -194,11 +247,9 @@ function setUserLocation(latlng, accuracy = null) {
   map.addLayer(loc);
 }
 
-// Manual location selection
 map.on("dblclick", (e) => {
   if (!locatingmanually) return;
 
-  // Không cho kết quả GPS cũ ghi đè vị trí thủ công
   locationRequestId++;
   findingLocation = false;
 
@@ -223,11 +274,9 @@ function FindLocation() {
 
   findingLocation = true;
 
-  // Mỗi yêu cầu GPS có một ID riêng
   let requestId = ++locationRequestId;
 
   map.once("locationfound", (e) => {
-    // Bỏ qua kết quả của yêu cầu GPS cũ
     if (requestId !== locationRequestId) return;
 
     findingLocation = false;
@@ -246,7 +295,6 @@ function FindLocation() {
   });
 
   map.once("locationerror", (e) => {
-    // Bỏ qua lỗi của yêu cầu GPS cũ
     if (requestId !== locationRequestId) return;
 
     findingLocation = false;
@@ -268,19 +316,33 @@ function FindLocation() {
   }
 }
 
+const THEME_KEY = "resqtrack-theme";
+
 function ToggleTheme() {
-  document.body.classList.toggle('light-mode');
+  const isDark = document.body.classList.toggle("dark-mode");
+  const btn = document.getElementById("themetoggle");
 
-  const btn = document.getElementById('themetoggle');
+  if (btn) btn.innerHTML = isDark ? "☀️" : "🌙";
 
-  if (btn) {
-    if (document.body.classList.contains('light-mode')) {
-      btn.innerHTML = '🌙';
-    } else {
-      btn.innerHTML = '☀️';
-    }
-  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute("content", isDark ? "#0f172a" : "#f8fafc");
+
+  try {
+    localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
+  } catch (e) {}
 }
+
+(function initTheme() {
+  try {
+    if (localStorage.getItem(THEME_KEY) === "dark") {
+      document.body.classList.add("dark-mode");
+      const btn = document.getElementById("themetoggle");
+      if (btn) btn.innerHTML = "☀️";
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.setAttribute("content", "#0f172a");
+    }
+  } catch (e) {}
+})();
 
 let routingControl = null;
 let activeCardElement = null;
@@ -314,7 +376,6 @@ function calculateSmartETA(distanceMeters, baseTimeSeconds, endLatLng) {
   };
 }
 
-// ---- Unified ETA: list and selected route use the SAME road-based calculation ----
 let routeMetricsCache = {};
 let etaRequestId = 0;
 
@@ -322,7 +383,6 @@ function etaCacheKey(start, pos) {
   return start.lat.toFixed(5) + "," + start.lng.toFixed(5) + "|" + pos[0] + "," + pos[1];
 }
 
-// Road route from OSRM (same service the route line uses) -> smart metrics
 function fetchRouteMetrics(start, end) {
   return new Promise((resolve) => {
     if (!window.L || !L.Routing || !L.Routing.osrmv1) {
@@ -348,7 +408,6 @@ function fetchRouteMetrics(start, end) {
   });
 }
 
-// Only used if the routing service is unreachable (marked approximate)
 function fallbackMetrics(start, end) {
   let d = start.distanceTo(end);
   let m = calculateSmartETA(d, (d / 1000) / 40 * 3600);
@@ -374,7 +433,6 @@ function calculateAllAmbulancesETA(ambulanceData, preserveSelection = false) {
     return;
   }
 
-  // Show "calculating" placeholders first
   updateAmbulanceListUIWithETA(items, preserveSelection);
 
   Promise.all(items.map(async (it) => {
@@ -391,7 +449,7 @@ function calculateAllAmbulancesETA(ambulanceData, preserveSelection = false) {
 
     Object.assign(it, metrics, { pending: false });
   })).then(() => {
-    if (requestId !== etaRequestId) return; // newer request exists
+    if (requestId !== etaRequestId) return;
     updateAmbulanceListUIWithETA(sortItems(items), true);
   });
 }
@@ -428,11 +486,22 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
       return null;
     },
     lineOptions: {
-      styles: [{
-        color: '#3b82f6',
-        opacity: 0.9,
-        weight: 6
-      }]
+      styles: [
+        {
+          color: '#1d4ed8',
+          opacity: 0.35,
+          weight: 14,
+          lineCap: 'round',
+          lineJoin: 'round'
+        },
+        {
+          color: '#3b82f6',
+          opacity: 1,
+          weight: 8,
+          lineCap: 'round',
+          lineJoin: 'round'
+        }
+      ]
     }
   });
 
@@ -459,7 +528,7 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
           km: smartMetrics.distanceKm
         });
 
-        subSpan.style.color = '#22c55e';
+        subSpan.style.color = 'var(--success)';
       }
     }
 
@@ -471,7 +540,6 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
   routingControl.addTo(map);
 }
 
-// Re-translate text that lives on the map (called when language changes)
 function refreshMapTexts() {
   currentMarkers.forEach(marker => {
     if (!marker.ambName) return;
