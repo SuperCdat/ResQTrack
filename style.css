@@ -592,3 +592,7 @@ body.satellite-active.dark-mode .leaflet-tile {
 body.satellite-active #map {
   background-color: #000 !important;
 }
+
+body.satellite-active .leaflet-tile {
+  filter: none !important;
+}

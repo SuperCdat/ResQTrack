@@ -49,33 +49,38 @@ let map = new L.map("map", mapOptions);
 
 const OSM_TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 
-const SATELLITE_TILES =
-  "https://tiles.maps.eox.at/wmts" +
-  "?layer=s2cloudless-2024_3857" +
-  "&style=default" +
-  "&tilematrixset=GoogleMapsCompatible" +
-  "&Service=WMTS" +
-  "&Request=GetTile" +
-  "&Version=1.0.0" +
-  "&Format=image%2Fjpeg" +
-  "&TileMatrix={z}" +
-  "&TileCol={x}" +
-  "&TileRow={y}";
+// Esri World Imagery — high-resolution aerial/satellite base
+const ESRI_IMAGERY_TILES =
+  "https://server.arcgisonline.com/ArcGIS/rest/services/" +
+  "World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
-const SATELLITE_ATTRIBUTION =
-  '<a href="https://s2maps.eu" target="_blank" rel="noreferrer">' +
-  "Sentinel-2 cloudless</a> by EOX IT Services GmbH " +
-  "(Contains modified Copernicus Sentinel data 2024)";
+// Esri Reference Overlay — transparent labels (roads, places, hospitals, POIs)
+const ESRI_LABELS_TILES =
+  "https://services.arcgisonline.com/arcgis/rest/services/" +
+  "Reference/World_Reference_Overlay/MapServer/tile/{z}/{y}/{x}";
+
+const ESRI_ATTRIBUTION =
+  "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, " +
+  "and the GIS User Community";
 
 const osmLayer = L.tileLayer(OSM_TILES, {
   attribution: "© OpenStreetMap contributors",
   maxZoom: 19
 });
 
-const satelliteLayer = L.tileLayer(SATELLITE_TILES, {
-  attribution: SATELLITE_ATTRIBUTION,
-  maxZoom: 18,
-  crossOrigin: true
+// Base imagery layer
+const esriImageryLayer = L.tileLayer(ESRI_IMAGERY_TILES, {
+  attribution: ESRI_ATTRIBUTION,
+  maxZoom: 19,
+  maxNativeZoom: 18
+});
+
+// Transparent label overlay — must sit above the imagery
+const esriLabelsLayer = L.tileLayer(ESRI_LABELS_TILES, {
+  attribution: "",
+  maxZoom: 19,
+  maxNativeZoom: 18,
+  pane: "shadowPane" // renders above tilePane, below markers
 });
 
 let activeBase = "osm";
@@ -85,8 +90,11 @@ function ToggleSatellite() {
   const btn = document.getElementById("satellitetoggle");
 
   if (activeBase === "osm") {
+    // Switch to hybrid satellite
     map.removeLayer(osmLayer);
-    satelliteLayer.addTo(map);
+
+    esriImageryLayer.addTo(map);
+    esriLabelsLayer.addTo(map); // labels on top of imagery
 
     activeBase = "satellite";
     document.body.classList.add("satellite-active");
@@ -96,7 +104,10 @@ function ToggleSatellite() {
       btn.title = t("tt_map");
     }
   } else {
-    map.removeLayer(satelliteLayer);
+    // Switch back to street map
+    map.removeLayer(esriImageryLayer);
+    map.removeLayer(esriLabelsLayer);
+
     osmLayer.addTo(map);
 
     activeBase = "osm";
