@@ -54,10 +54,14 @@ const ESRI_IMAGERY_TILES =
   "https://server.arcgisonline.com/ArcGIS/rest/services/" +
   "World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
-// Esri Reference Overlay — transparent labels (roads, places, hospitals, POIs)
-const ESRI_LABELS_TILES =
+// Esri reference overlays (no API key needed): road names + places/boundaries
+const ESRI_ROADS_TILES =
   "https://services.arcgisonline.com/arcgis/rest/services/" +
-  "Reference/World_Reference_Overlay/MapServer/tile/{z}/{y}/{x}";
+  "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
+
+const ESRI_PLACES_TILES =
+  "https://services.arcgisonline.com/arcgis/rest/services/" +
+  "Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
 
 const ESRI_ATTRIBUTION =
   "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, " +
@@ -75,13 +79,57 @@ const esriImageryLayer = L.tileLayer(ESRI_IMAGERY_TILES, {
   maxNativeZoom: 18
 });
 
-// Transparent label overlay — must sit above the imagery
-const esriLabelsLayer = L.tileLayer(ESRI_LABELS_TILES, {
-  attribution: "",
-  maxZoom: 19,
-  maxNativeZoom: 18,
-  pane: "shadowPane" // renders above tilePane, below markers
-});
+// Dedicated pane: above imagery, below routes/markers, never blocks clicks
+map.createPane("labelsPane");
+map.getPane("labelsPane").style.zIndex = 350;
+map.getPane("labelsPane").style.pointerEvents = "none";
+
+// Esri draws roads/borders with semi-transparent pixels. This SVG filter boosts the
+// alpha channel so those lines render solid, without widening them much.
+(function () {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "0");
+  svg.setAttribute("height", "0");
+  svg.style.position = "absolute";
+  svg.innerHTML =
+    '<filter id="opaque-labels" color-interpolation-filters="sRGB">' +
+    '<feComponentTransfer>' +
+    '<feFuncA type="linear" slope="2.4" intercept="0"/>' +
+    '</feComponentTransfer></filter>';
+  document.body.appendChild(svg);
+  map.getPane("labelsPane").style.filter = "url(#opaque-labels)";
+})();
+
+// Esri bakes semi-transparent lines (roads, province/country borders) into its tiles.
+// An SVG alpha filter pushes every partly-transparent pixel to fully opaque.
+(function makeLinesOpaque() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("width", "0");
+  svg.setAttribute("height", "0");
+  svg.style.position = "absolute";
+  svg.innerHTML =
+    '<filter id="opaque-lines" color-interpolation-filters="sRGB">' +
+    '<feComponentTransfer><feFuncA type="linear" slope="6" intercept="0"/></feComponentTransfer>' +
+    "</filter>";
+  document.body.appendChild(svg);
+  map.getPane("labelsPane").style.filter = "url(#opaque-lines)";
+})();
+
+const esriLabelsLayer = L.layerGroup([
+  L.tileLayer(ESRI_ROADS_TILES, {
+    attribution: "",
+    maxZoom: 19,
+    maxNativeZoom: 18,
+    pane: "labelsPane"
+  }),
+  L.tileLayer(ESRI_PLACES_TILES, {
+    attribution: "",
+    maxZoom: 19,
+    maxNativeZoom: 18,
+    pane: "labelsPane"
+  })
+]);
 
 let activeBase = "osm";
 map.addLayer(osmLayer);
@@ -240,13 +288,18 @@ function setUserLocation(latlng, accuracy = null) {
   locfound = L.latLng(latlng);
   locfoundaccuracy = accuracy || 0;
 
-  loc = L.circleMarker(locfound);
+  loc = L.circleMarker(locfound, {
+    color: '#ffffff', weight: 3, opacity: 1,
+    fillColor: '#2563eb', fillOpacity: 1
+  });
 
   if (accuracy && accuracy > 0) {
     loc.bindPopup(t("popup_gps", { m: Math.round(accuracy) }));
 
     locaccuracy = L.circle(locfound, {
-      radius: accuracy
+      radius: accuracy,
+      color: '#2563eb', weight: 2, opacity: 1,
+      fillColor: '#2563eb', fillOpacity: 0.12
     });
 
     map.addLayer(locaccuracy);
@@ -496,15 +549,12 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
     createMarker: function() {
       return null;
     },
+    missingRouteStyles: [
+      { color: '#3b82f6', opacity: 1, weight: 8, lineCap: 'round', lineJoin: 'round' }
+    ],
     lineOptions: {
+      missingRouteTolerance: 0,
       styles: [
-        {
-          color: '#1d4ed8',
-          opacity: 0.35,
-          weight: 14,
-          lineCap: 'round',
-          lineJoin: 'round'
-        },
         {
           color: '#3b82f6',
           opacity: 1,
@@ -552,6 +602,7 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
 }
 
 function refreshMapTexts() {
+  if (typeof refreshHospitalTexts === "function") refreshHospitalTexts();
   currentMarkers.forEach(marker => {
     if (!marker.ambName) return;
 
@@ -570,4 +621,191 @@ function refreshMapTexts() {
         : t("popup_manual")
     );
   }
+}
+
+
+/* ================= Hospitals (OpenStreetMap / Overpass) ================= */
+
+map.createPane("hospitalPane");
+map.getPane("hospitalPane").style.zIndex = 590; // below ambulances (600)
+
+const hospitalLayer = L.layerGroup().addTo(map);
+const hospitalMarkers = new Map();
+const HOSP_MIN_ZOOM = 11;
+const OVERPASS_URLS = [
+  "https://overpass-api.de/api/interpreter",
+  "https://overpass.kumi.systems/api/interpreter"
+];
+let hospFetchedBounds = null;
+let hospTimer = null;
+
+// Estimated size ("bed equivalents"): real `beds` tag if present, otherwise footprint x floors
+function hospitalScore(el) {
+  const tags = el.tags || {};
+  const beds = parseInt(tags.beds, 10);
+  if (beds > 0) return beds;
+
+  let score = 40;
+  if (el.bounds) {
+    const b = el.bounds;
+    const lat = (b.minlat + b.maxlat) / 2;
+    const h = (b.maxlat - b.minlat) * 111320;
+    const w = (b.maxlon - b.minlon) * 111320 * Math.cos(lat * Math.PI / 180);
+    const levels = parseFloat(tags["building:levels"]) || 2;
+    score = (h * w * levels) / 90;
+  }
+
+  const name = ((tags.name || "") + " " + (tags["name:en"] || "")).toLowerCase();
+  if (/đa khoa|general|trung ương|central|university|đại học|national|quốc gia/.test(name)) score *= 1.6;
+  if (/phòng khám|clinic|trạm y tế|medical center|chuyên khoa/.test(name)) score *= 0.5;
+
+  return Math.max(5, score);
+}
+
+// 0 (small) .. 1 (very large) on a log scale
+function hospitalT(score) {
+  return Math.min(1, Math.max(0, Math.log(score / 10) / Math.log(800 / 10)));
+}
+
+const HOSP_STOPS = [
+  [0.0, [252, 205, 205]], // pale pink
+  [0.5, [239, 68, 68]],   // red
+  [1.0, [127, 15, 15]]    // deep red
+];
+
+function hospitalColor(k0) {
+  for (let i = 1; i < HOSP_STOPS.length; i++) {
+    if (k0 <= HOSP_STOPS[i][0]) {
+      const [t1, c1] = HOSP_STOPS[i - 1];
+      const [t2, c2] = HOSP_STOPS[i];
+      const k = (k0 - t1) / (t2 - t1);
+      return "rgb(" + c1.map((v, j) => Math.round(v + (c2[j] - v) * k)).join(",") + ")";
+    }
+  }
+  return "rgb(127,15,15)";
+}
+
+function hospitalIcon(k) {
+  const size = Math.round(22 + k * 16);
+  const color = hospitalColor(k);
+  const html =
+    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" ' +
+    'style="filter: drop-shadow(0 1px 3px rgba(0,0,0,.6));">' +
+    '<circle cx="12" cy="12" r="10.5" fill="' + color + '" stroke="#fff" stroke-width="2"/>' +
+    '<path d="M10 6h4v4h4v4h-4v4h-4v-4H6v-4h4z" fill="#fff"/></svg>';
+
+  return L.divIcon({
+    className: "hospital-icon",
+    html: html,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2]
+  });
+}
+
+function hospitalDisplayName(tags) {
+  return (currentLang === "en" && tags["name:en"]) || tags.name || t("hosp_default_name");
+}
+
+function hospitalPopup(m) {
+  const tg = m.hosp.tags;
+  const lvl = m.hosp.k < 0.3 ? "size_1" : m.hosp.k < 0.55 ? "size_2" : m.hosp.k < 0.8 ? "size_3" : "size_4";
+  let html = "<b>" + hospitalDisplayName(tg).replace(/</g, "&lt;") + "</b><br>" +
+    t("hosp_size", { label: t(lvl) });
+  const beds = parseInt(tg.beds, 10);
+  if (beds > 0) html += "<br>" + t("hosp_beds", { n: beds });
+  return html;
+}
+
+function addHospital(el) {
+  const key = el.type + el.id;
+  if (hospitalMarkers.has(key)) return;
+
+  const pos = el.type === "node"
+    ? [el.lat, el.lon]
+    : el.center ? [el.center.lat, el.center.lon] : null;
+  if (!pos) return;
+
+  const k = hospitalT(hospitalScore(el));
+  const tags = el.tags || {};
+
+  const m = L.marker(pos, {
+    icon: hospitalIcon(k),
+    pane: "hospitalPane",
+    zIndexOffset: Math.round(k * 1000) // bigger hospitals draw on top
+  });
+  m.hosp = { tags: tags, k: k };
+
+  m.bindPopup(() => hospitalPopup(m));
+  m.bindTooltip(() => hospitalDisplayName(tags), {
+    permanent: true,
+    direction: "right",
+    offset: [12, 0],
+    className: "hosp-label"
+  });
+
+  m.addTo(hospitalLayer);
+  hospitalMarkers.set(key, m);
+}
+
+async function loadHospitals() {
+  if (map.getZoom() < HOSP_MIN_ZOOM) return;
+
+  const view = map.getBounds();
+  if (hospFetchedBounds && hospFetchedBounds.contains(view)) return;
+
+  const area = view.pad(0.3);
+  const query =
+    '[out:json][timeout:25];nwr["amenity"="hospital"](' +
+    [area.getSouth(), area.getWest(), area.getNorth(), area.getEast()].join(",") +
+    ");out center tags bb;";
+
+  for (const url of OVERPASS_URLS) {
+    try {
+      const res = await fetch(url, {
+        method: "POST",
+        body: "data=" + encodeURIComponent(query),
+        headers: { "Content-Type": "application/x-www-form-urlencoded" }
+      });
+      if (!res.ok) continue;
+
+      const json = await res.json();
+      (json.elements || []).forEach(addHospital);
+      hospFetchedBounds = area;
+      return;
+    } catch (e) {
+      console.warn("Overpass failed:", url, e);
+    }
+  }
+}
+
+function scheduleHospitalLoad() {
+  clearTimeout(hospTimer);
+  hospTimer = setTimeout(loadHospitals, 500);
+}
+
+function updateZoomClass() {
+  map.getContainer().classList.toggle("zoom-labels", map.getZoom() >= 15);
+}
+
+map.on("moveend", () => { updateZoomClass(); scheduleHospitalLoad(); });
+updateZoomClass();
+scheduleHospitalLoad();
+
+// Legend (translated through data-i18n)
+(function createHospitalLegend() {
+  const el = document.createElement("div");
+  el.id = "hosp-legend";
+  el.innerHTML =
+    '<div class="legend-title" data-i18n="legend_title"></div>' +
+    '<div class="legend-bar"></div>' +
+    '<div class="legend-row"><span data-i18n="legend_small"></span><span data-i18n="legend_large"></span></div>';
+  document.body.appendChild(el);
+  if (typeof applyStaticTranslations === "function") applyStaticTranslations();
+})();
+
+function refreshHospitalTexts() {
+  hospitalMarkers.forEach(m => {
+    m.getTooltip().update();
+    if (m.isPopupOpen()) m.setPopupContent(hospitalPopup(m));
+  });
 }
