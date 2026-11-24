@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
 import {
-  getDatabase, ref, onValue, onChildAdded, onChildChanged, off, goOffline, goOnline
+  getDatabase, ref, set, update, onValue, onChildAdded, onChildChanged, off, goOffline, goOnline
 } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
 
 const app = initializeApp({
@@ -14,7 +14,7 @@ const app = initializeApp({
 });
 
 const db = getFirestore(app);
-const rtdb = getDatabase(app); // add { databaseURL } if your RTDB is not in the default region
+const rtdb = getDatabase(app, "https://resqtrack-10d06-default-rtdb.asia-southeast1.firebasedatabase.app");
 
 /* ---- Static catalog: Firestore (1 doc), re-read only when catalogVersion changes ---- */
 
@@ -46,7 +46,6 @@ function fallbackToLocal(reason) {
   if (!catalogShown) loadLocalData();
 }
 
-// If Firebase never answers (wrong region, offline, rules), still show ambulances
 setTimeout(() => { if (!catalogShown) fallbackToLocal("Firebase timeout"); }, 4000);
 
 onValue(ref(rtdb, "catalogVersion"), async (snap) => {
@@ -54,18 +53,64 @@ onValue(ref(rtdb, "catalogVersion"), async (snap) => {
 
   try {
     const data = cachedCatalog(version) || await fetchCatalog(version);
-    liveProvince = null; // force live listeners to re-attach for the new catalog
+    liveProvince = null;
     catalogShown = true;
     applyCatalog(data);
   } catch (e) {
     fallbackToLocal(e);
   }
-}, (err) => fallbackToLocal(err)); // e.g. PERMISSION_DENIED
+}, (err) => fallbackToLocal(err));
 
-/* ---- Live positions: RTDB, only the province on screen, only changed children ---- */
+/* ---- Live positions & driver info: RTDB, only the province on screen ---- */
 
 let liveProvince = null;
 let liveRef = null;
+
+function syncRemoteDriverNode(province, id, payload) {
+  if (!payload || typeof payload.lat !== "number" || typeof payload.lng !== "number") return;
+  if (typeof globalTransportData === "undefined" || !globalTransportData) return;
+
+  if (!globalTransportData[province]) {
+    globalTransportData[province] = [];
+  }
+
+  const list = globalTransportData[province];
+  const status = payload.status || "available";
+  const idx = list.findIndex((a) => a.id === id);
+
+  if (status !== "available") {
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      if (province === currentProvince && typeof loadProvinceData === "function") {
+        loadProvinceData(province);
+      }
+    }
+    return;
+  }
+
+  if (idx >= 0) {
+    list[idx].pos = [payload.lat, payload.lng];
+    if (payload.name) list[idx].name = payload.name;
+    if (payload.phonenumber) list[idx].phonenumber = payload.phonenumber;
+    list[idx].status = status;
+
+    if (province === currentProvince && typeof applyLivePosition === "function") {
+      applyLivePosition(province, id, payload.lat, payload.lng);
+    }
+  } else {
+    list.push({
+      id,
+      name: payload.name || `Xe trực tuyến (${id.slice(-4)})`,
+      phonenumber: payload.phonenumber || "",
+      status: "available",
+      pos: [payload.lat, payload.lng]
+    });
+
+    if (province === currentProvince && typeof loadProvinceData === "function") {
+      loadProvinceData(province);
+    }
+  }
+}
 
 window.onProvinceLoaded = (province) => {
   if (province === liveProvince) return;
@@ -74,17 +119,48 @@ window.onProvinceLoaded = (province) => {
   liveProvince = province;
   liveRef = ref(rtdb, "live/" + province);
 
-  const apply = (snap) => {
+  const handleSnapshot = (snap) => {
     const v = snap.val();
-    if (v) applyLivePosition(province, snap.key, v.lat, v.lng);
+    if (!v) return;
+
+    if (typeof v.name === "string" || typeof v.phonenumber === "string" || typeof v.status === "string") {
+      syncRemoteDriverNode(province, snap.key, v);
+    } else if (typeof v.lat === "number" && typeof v.lng === "number") {
+      if (typeof applyLivePosition === "function") {
+        applyLivePosition(province, snap.key, v.lat, v.lng);
+      }
+    }
   };
 
-  onChildAdded(liveRef, apply);   // initial positions, once
-  onChildChanged(liveRef, apply); // afterwards only the ambulance that moved
+  onChildAdded(liveRef, handleSnapshot);
+  onChildChanged(liveRef, handleSnapshot);
 };
 
-// Hidden tab = no connection, no bandwidth
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) goOffline(rtdb);
   else goOnline(rtdb);
 });
+
+window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
+  try {
+    const targetRef = ref(rtdb, `live/${province}/${carId}`);
+    if (meta && typeof meta === "object") {
+      await update(targetRef, {
+        lat,
+        lng,
+        name: meta.name || "",
+        phonenumber: meta.phonenumber || "",
+        status: meta.status || "available",
+        updatedAt: Date.now()
+      });
+    } else {
+      await update(targetRef, {
+        lat,
+        lng,
+        updatedAt: Date.now()
+      });
+    }
+  } catch (err) {
+    console.error("Lỗi ghi vị trí lên RTDB:", err);
+  }
+};

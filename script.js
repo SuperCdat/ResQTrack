@@ -138,11 +138,10 @@ function ToggleSatellite() {
   const btn = document.getElementById("satellitetoggle");
 
   if (activeBase === "osm") {
-    // Switch to hybrid satellite
     map.removeLayer(osmLayer);
 
     esriImageryLayer.addTo(map);
-    esriLabelsLayer.addTo(map); // labels on top of imagery
+    esriLabelsLayer.addTo(map);
 
     activeBase = "satellite";
     document.body.classList.add("satellite-active");
@@ -152,7 +151,6 @@ function ToggleSatellite() {
       btn.title = t("tt_map");
     }
   } else {
-    // Switch back to street map
     map.removeLayer(esriImageryLayer);
     map.removeLayer(esriLabelsLayer);
 
@@ -179,11 +177,11 @@ let currentProvince = null;
 
 // Called by firebase-data.js with the full catalog ({ province: [ambulances] })
 function applyCatalog(dataraw) {
-  globalTransportData = dataraw;
+  globalTransportData = dataraw || {};
 
-  let province = dataraw[currentProvince]
+  let province = dataraw && dataraw[currentProvince]
     ? currentProvince
-    : ("Cần Thơ" in dataraw ? "Cần Thơ" : Object.keys(dataraw)[0]);
+    : (dataraw && "Cần Thơ" in dataraw ? "Cần Thơ" : Object.keys(dataraw || {})[0]);
 
   if (province) {
     loadProvinceData(province);
@@ -217,6 +215,8 @@ function loadProvinceData(provinceName) {
   currentMarkers = [];
 
   for (let i = 0; i < data.length; i++) {
+    if (!Array.isArray(data[i].pos) || data[i].pos.length < 2) continue;
+
     let marker = new L.Marker(data[i].pos, {
       title: localizeName(data[i].name),
       icon: ambulanceIcon
@@ -648,10 +648,14 @@ const OVERPASS_URLS = [
   "https://overpass-api.de/api/interpreter",
   "https://overpass.kumi.systems/api/interpreter"
 ];
+const HOSP_DEBOUNCE_MS = 1200;
+const HOSP_BACKOFF_MS = 25000;
+
 let hospFetchedBounds = null;
 let hospTimer = null;
+let hospBackoffUntil = 0;
+let hospInFlight = false;
 
-// Estimated size ("bed equivalents"): real `beds` tag if present, otherwise footprint x floors
 function hospitalScore(el) {
   const tags = el.tags || {};
   const beds = parseInt(tags.beds, 10);
@@ -674,15 +678,14 @@ function hospitalScore(el) {
   return Math.max(5, score);
 }
 
-// 0 (small) .. 1 (very large) on a log scale
 function hospitalT(score) {
   return Math.min(1, Math.max(0, Math.log(score / 10) / Math.log(800 / 10)));
 }
 
 const HOSP_STOPS = [
-  [0.0, [252, 205, 205]], // pale pink
-  [0.5, [239, 68, 68]],   // red
-  [1.0, [127, 15, 15]]    // deep red
+  [0.0, [252, 205, 205]],
+  [0.5, [239, 68, 68]],
+  [1.0, [127, 15, 15]]
 ];
 
 function hospitalColor(k0) {
@@ -743,7 +746,7 @@ function addHospital(el) {
   const m = L.marker(pos, {
     icon: hospitalIcon(k),
     pane: "hospitalPane",
-    zIndexOffset: Math.round(k * 1000) // bigger hospitals draw on top
+    zIndexOffset: Math.round(k * 1000)
   });
   m.hosp = { tags: tags, k: k };
 
@@ -760,39 +763,61 @@ function addHospital(el) {
 }
 
 async function loadHospitals() {
+  if (hospInFlight) return;
+  if (Date.now() < hospBackoffUntil) return;
   if (map.getZoom() < HOSP_MIN_ZOOM) return;
 
   const view = map.getBounds();
   if (hospFetchedBounds && hospFetchedBounds.contains(view)) return;
 
-  const area = view.pad(0.3);
+  const area = view.pad(0.35);
   const query =
     '[out:json][timeout:25];nwr["amenity"="hospital"](' +
     [area.getSouth(), area.getWest(), area.getNorth(), area.getEast()].join(",") +
     ");out center tags bb;";
 
-  for (const url of OVERPASS_URLS) {
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        body: "data=" + encodeURIComponent(query),
-        headers: { "Content-Type": "application/x-www-form-urlencoded" }
-      });
-      if (!res.ok) continue;
+  hospInFlight = true;
+  let allFailed = true;
 
-      const json = await res.json();
-      (json.elements || []).forEach(addHospital);
-      hospFetchedBounds = area;
-      return;
-    } catch (e) {
-      console.warn("Overpass failed:", url, e);
+  try {
+    for (const url of OVERPASS_URLS) {
+      try {
+        const res = await fetch(url, {
+          method: "POST",
+          body: "data=" + encodeURIComponent(query),
+          headers: { "Content-Type": "application/x-www-form-urlencoded" }
+        });
+
+        if (res.status === 429) {
+          hospBackoffUntil = Date.now() + HOSP_BACKOFF_MS;
+          continue;
+        }
+
+        if (!res.ok) continue;
+
+        const json = await res.json();
+        (json.elements || []).forEach(addHospital);
+        hospFetchedBounds = area;
+        hospBackoffUntil = 0;
+        allFailed = false;
+        return;
+      } catch (e) {
+        console.warn("Overpass tạm thời không phản hồi:", url);
+      }
     }
+
+    if (allFailed && Date.now() >= hospBackoffUntil) {
+      hospBackoffUntil = Date.now() + HOSP_BACKOFF_MS;
+    }
+  } finally {
+    hospInFlight = false;
   }
 }
 
 function scheduleHospitalLoad() {
   clearTimeout(hospTimer);
-  hospTimer = setTimeout(loadHospitals, 500);
+  if (Date.now() < hospBackoffUntil) return;
+  hospTimer = setTimeout(loadHospitals, HOSP_DEBOUNCE_MS);
 }
 
 function updateZoomClass() {
@@ -803,7 +828,6 @@ map.on("moveend", () => { updateZoomClass(); scheduleHospitalLoad(); });
 updateZoomClass();
 scheduleHospitalLoad();
 
-// Legend (translated through data-i18n)
 (function createHospitalLegend() {
   const el = document.createElement("div");
   el.id = "hosp-legend";
@@ -833,26 +857,378 @@ function applyLivePosition(province, id, lat, lng) {
   const amb = (globalTransportData[province] || []).find(a => a.id === id);
   if (!amb) return;
 
-  // Mutate in place so cached route keys and the open route see the new position
   amb.pos[0] = lat;
   amb.pos[1] = lng;
 
   const marker = currentMarkers.find(m => m.ambId === id);
   if (marker) marker.setLatLng(amb.pos);
 
-  // ETA / route use the public OSRM server: refresh at most once per 10 s
   if (!liveRefreshTimer) liveRefreshTimer = setTimeout(refreshAfterLive, 10000);
 }
 
 function refreshAfterLive() {
   liveRefreshTimer = null;
 
-  if (locfound && currentAmbulanceData.length) {
+  if (locfound && typeof currentAmbulanceData !== "undefined" && currentAmbulanceData.length) {
     calculateAllAmbulancesETA(currentAmbulanceData, true);
   }
 
   if (routingControl && selectedAmbulance) {
-    routingControl.options.fitSelectedRoutes = false; // don't jump the map
+    routingControl.options.fitSelectedRoutes = false;
     routingControl.spliceWaypoints(1, 1, L.latLng(selectedAmbulance.pos));
   }
 }
+
+
+/* ================= Role Switcher, GPS & Simulation ================= */
+
+let currentRole = "user";
+let driverSimInterval = null;
+let driverRouteCoords = [];
+let driverRouteIndex = 0;
+let driverGpsWatchId = null;
+let simStartPos = null;
+let simulatedPos = [10.034185, 105.72255];
+
+let driverSimMarker = null;
+let realPosBeforeSim = null;
+
+const DRIVER_ID_KEY = "resqtrack_driver_id";
+const DRIVER_SYNC_KEY = "resqtrack_driver_update";
+
+const PROVINCE_CENTERS = {
+  "Cần Thơ": [10.034185, 105.72255],
+  "TP. Hồ Chí Minh": [10.776889, 106.700806],
+  "An Giang": [10.386, 105.435],
+  "Vĩnh Long": [10.2537, 105.9722],
+  "Đồng Tháp": [10.4938, 105.6882]
+};
+
+function getDriverId() {
+  try {
+    let id = localStorage.getItem(DRIVER_ID_KEY);
+    if (!id) {
+      id = "drv_" + Math.random().toString(36).slice(2, 10);
+      localStorage.setItem(DRIVER_ID_KEY, id);
+    }
+    return id;
+  } catch (e) {
+    return "drv_session_" + Date.now();
+  }
+}
+
+function setDriverMsg(text, color = "var(--subtext)") {
+  const msgEl = document.getElementById("driverStatusMsg");
+  if (!msgEl) return;
+  msgEl.textContent = text;
+  msgEl.style.color = color;
+}
+
+function clearDriverSimMarker() {
+  if (driverSimMarker && typeof map !== "undefined" && map && map.hasLayer(driverSimMarker)) {
+    map.removeLayer(driverSimMarker);
+  }
+  driverSimMarker = null;
+}
+
+function stopDriverSim(msgText = null) {
+  if (driverSimInterval) {
+    clearInterval(driverSimInterval);
+    driverSimInterval = null;
+  }
+  driverRouteCoords = [];
+  driverRouteIndex = 0;
+  if (msgText) setDriverMsg(msgText);
+}
+
+function stopDriverGpsWatch() {
+  if (driverGpsWatchId !== null && navigator.geolocation) {
+    navigator.geolocation.clearWatch(driverGpsWatchId);
+    driverGpsWatchId = null;
+  }
+}
+
+function resetDriverToRealLocation() {
+  clearDriverSimMarker();
+
+  const restoredPos = realPosBeforeSim ? [...realPosBeforeSim] : [...simulatedPos];
+  realPosBeforeSim = null;
+  simStartPos = null;
+  simulatedPos = restoredPos;
+
+  if (!navigator.geolocation) {
+    if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
+      map.panTo(simulatedPos);
+    }
+    startDriverGpsWatch();
+    setDriverMsg("Đã tắt mô phỏng — đang ở đúng vị trí thật của bạn.", "var(--success)");
+    return;
+  }
+
+  setDriverMsg("Đã tắt mô phỏng, đang lấy lại vị trí GPS thật...");
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      simulatedPos = [pos.coords.latitude, pos.coords.longitude];
+      if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
+        map.panTo(simulatedPos);
+      }
+      UpdateDriverStatus(false);
+      startDriverGpsWatch();
+      setDriverMsg("Đã tắt mô phỏng — bạn đang ở đúng vị trí GPS thật.", "var(--success)");
+    },
+    () => {
+      if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
+        map.panTo(simulatedPos);
+      }
+      startDriverGpsWatch();
+      setDriverMsg("Đã tắt mô phỏng — đã quay về vị trí thật của bạn.");
+    },
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 6000 }
+  );
+}
+
+function startDriverGpsWatch() {
+  if (!navigator.geolocation) {
+    setDriverMsg("Thiết bị không hỗ trợ GPS, đang giữ vị trí hiện tại.");
+    return;
+  }
+
+  stopDriverSim();
+  stopDriverGpsWatch();
+  setDriverMsg("Đang theo dõi vị trí thực tế của bạn...", "var(--success)");
+
+  let firstFix = true;
+
+  driverGpsWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      if (driverSimInterval) return;
+
+      const accuracy = pos.coords.accuracy || 0;
+      if (!firstFix && accuracy > 150) return;
+
+      const lat = pos.coords.latitude;
+      const lng = pos.coords.longitude;
+      const distMeters = L.latLng(lat, lng).distanceTo(L.latLng(simulatedPos[0], simulatedPos[1]));
+      const moved = !firstFix && distMeters > 8;
+
+      simulatedPos = [lat, lng];
+
+      if (firstFix && typeof map !== "undefined" && map && typeof map.panTo === "function") {
+        map.panTo(simulatedPos);
+      }
+
+      if (firstFix || moved) {
+        firstFix = false;
+        UpdateDriverStatus(false);
+        setDriverMsg(
+          moved ? "Đang di chuyển theo GPS thực tế..." : "Đang đứng yên tại vị trí thực tế.",
+          "var(--success)"
+        );
+      }
+    },
+    (err) => {
+      console.warn("Driver GPS watch error:", err.message);
+      setDriverMsg("Không lấy được GPS (kiểm tra quyền định vị trình duyệt).");
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 2000,
+      timeout: 10000
+    }
+  );
+}
+
+function SwitchRole(role) {
+  currentRole = role;
+  const btnUser = document.getElementById("btnRoleUser");
+  const btnDriver = document.getElementById("btnRoleDriver");
+  const userMenu = document.getElementById("mainmenu");
+  const driverMenu = document.getElementById("drivermenu");
+  const userControls = document.getElementById("userControls");
+
+  if (btnUser) btnUser.classList.toggle("active", role === "user");
+  if (btnDriver) btnDriver.classList.toggle("active", role === "driver");
+
+  if (role === "driver") {
+    if (userMenu) userMenu.style.display = "none";
+    if (driverMenu) driverMenu.classList.remove("hidden");
+    if (userControls) userControls.style.display = "none";
+    startDriverGpsWatch();
+  } else {
+    if (userMenu) userMenu.style.display = "";
+    if (driverMenu) driverMenu.classList.add("hidden");
+    if (userControls) userControls.style.display = "flex";
+    stopDriverGpsWatch();
+  }
+}
+
+function syncDriverCarToState(province, car) {
+  if (typeof globalTransportData === "undefined" || !globalTransportData) return;
+  if (!globalTransportData[province]) {
+    globalTransportData[province] = [];
+  }
+  const list = globalTransportData[province];
+  const idx = list.findIndex((item) => item.id === car.id);
+
+  if (car.status === "available") {
+    if (idx >= 0) list[idx] = car;
+    else list.push(car);
+  } else if (idx >= 0) {
+    list.splice(idx, 1);
+  }
+
+  if (typeof loadProvinceData === "function") {
+    loadProvinceData(province);
+  }
+}
+
+function UpdateDriverStatus(shouldPan = false) {
+  const statusEl = document.getElementById("driverStatus");
+  const nameEl = document.getElementById("driverName");
+  const phoneEl = document.getElementById("driverPhone");
+  const provinceEl = document.getElementById("driverProvince");
+
+  const status = statusEl ? statusEl.value : "available";
+  const name = nameEl ? nameEl.value : "Xe 05 - Cần Thơ";
+  const phonenumber = phoneEl ? phoneEl.value : "0988776655";
+  const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
+
+  if (shouldPan && !driverSimInterval && PROVINCE_CENTERS[province]) {
+    simulatedPos = [...PROVINCE_CENTERS[province]];
+    if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
+      map.panTo(simulatedPos);
+    }
+  }
+
+  const car = {
+    id: getDriverId(),
+    name,
+    phonenumber,
+    status,
+    pos: [...simulatedPos]
+  };
+
+  try {
+    localStorage.setItem(
+      DRIVER_SYNC_KEY,
+      JSON.stringify({ province, data: car, time: Date.now() })
+    );
+  } catch (e) {}
+
+  syncDriverCarToState(province, car);
+
+  if (typeof window.pushDriverLivePos === "function") {
+    window.pushDriverLivePos(province, car.id, car.pos[0], car.pos[1], {
+      name: car.name,
+      phonenumber: car.phonenumber,
+      status: car.status
+    });
+  }
+
+  if (driverSimInterval || driverGpsWatchId !== null) return;
+  if (status === "busy") {
+    setDriverMsg(`Xe (${province}) đang bận - đã ẩn khỏi danh sách sẵn sàng.`, "var(--accent)");
+  } else if (status === "available") {
+    setDriverMsg(`Xe (${province}) đang sẵn sàng trên bản đồ.`, "var(--success)");
+  } else {
+    setDriverMsg(`Xe (${province}) đang tạm ngưng hoạt động.`, "var(--subtext)");
+  }
+}
+
+function buildRoadRoute(startLatLng, endLatLng, onReady) {
+  if (!window.L || !L.Routing || !L.Routing.osrmv1) {
+    onReady(null);
+    return;
+  }
+  L.Routing.osrmv1().route(
+    [L.Routing.waypoint(startLatLng), L.Routing.waypoint(endLatLng)],
+    (err, routes) => {
+      if (err || !routes || !routes[0] || !routes[0].coordinates || routes[0].coordinates.length < 2) {
+        onReady(null);
+        return;
+      }
+      onReady(routes[0].coordinates.map(pt => [pt.lat, pt.lng]));
+    }
+  );
+}
+
+function SimulateDrive() {
+  const provinceEl = document.getElementById("driverProvince");
+  const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
+
+  if (driverSimInterval) {
+    stopDriverSim();
+    resetDriverToRealLocation();
+    return;
+  }
+
+  stopDriverGpsWatch();
+  clearDriverSimMarker();
+  realPosBeforeSim = [...simulatedPos];
+  simStartPos = [...simulatedPos];
+  let simCurrentPos = [...simulatedPos];
+
+  setDriverMsg("Đang tìm tuyến đường mô phỏng riêng cho tài xế...");
+
+  const start = L.latLng(simCurrentPos[0], simCurrentPos[1]);
+  const center = PROVINCE_CENTERS[province] || simCurrentPos;
+  const dest = L.latLng(center[0] + 0.012, center[1] + 0.014);
+
+  buildRoadRoute(start, dest, (coords) => {
+    if (!coords) {
+      realPosBeforeSim = null;
+      simStartPos = null;
+      startDriverGpsWatch();
+      setDriverMsg("Không lấy được tuyến đường OSRM, thử lại sau.");
+      return;
+    }
+
+    driverRouteCoords = coords;
+    driverRouteIndex = 0;
+
+    if (typeof map !== "undefined" && map) {
+      driverSimMarker = L.circleMarker(simCurrentPos, {
+        radius: 8,
+        color: "#ffffff",
+        weight: 2,
+        fillColor: "#f59e0b",
+        fillOpacity: 1
+      }).addTo(map);
+      driverSimMarker.bindTooltip("Xe mô phỏng (chỉ tài xế thấy)", {
+        direction: "top"
+      });
+      if (typeof map.panTo === "function") {
+        map.panTo(simCurrentPos);
+      }
+    }
+
+    setDriverMsg("Đang mô phỏng riêng trên máy tài xế — người dùng vẫn thấy vị trí thật.", "var(--success)");
+
+    driverSimInterval = setInterval(() => {
+      if (driverRouteIndex >= driverRouteCoords.length) {
+        stopDriverSim();
+        resetDriverToRealLocation();
+        return;
+      }
+
+      simCurrentPos = [...driverRouteCoords[driverRouteIndex]];
+      if (driverSimMarker) {
+        driverSimMarker.setLatLng(simCurrentPos);
+      }
+      driverRouteIndex += 2;
+    }, 1500);
+  });
+}
+
+window.addEventListener("storage", (e) => {
+  if (e.key === DRIVER_SYNC_KEY && e.newValue) {
+    try {
+      const payload = JSON.parse(e.newValue);
+      if (payload && payload.data) {
+        syncDriverCarToState(payload.province || "Cần Thơ", payload.data);
+      }
+    } catch (err) {
+      console.error("Lỗi đồng bộ dữ liệu tài xế:", err);
+    }
+  }
+});

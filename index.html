@@ -4,14 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f8fafc">
+  <title>ResQTrack - Emergency Dispatch</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
   <link rel="stylesheet" href="style.css">
-  <title>ResQTrack - Emergency Dispatch</title>
 </head>
 <body>
   <div id="map"></div>
 
+  <!-- Nút chuyển vai trò -->
+  <div class="role-switch-container">
+    <button id="btnRoleUser" type="button" class="role-btn active" onclick="SwitchRole('user')">👤 Người dùng</button>
+    <button id="btnRoleDriver" type="button" class="role-btn" onclick="SwitchRole('driver')">🚑 Tài xế</button>
+  </div>
+
+  <!-- Menu bên trái: Người dùng -->
   <aside id="mainmenu">
     <div class="menu-header" id="menuheader" onclick="ToggleDrawer()" role="button" tabindex="0" aria-label="Toggle ambulance list">
       <h2>ResQTrack</h2>
@@ -30,19 +37,52 @@
     </div>
   </aside>
 
+  <!-- Bảng điều khiển bên trái: Tài xế -->
+  <aside id="drivermenu" class="driver-panel hidden">
+    <h2>Bảng điều khiển Tài xế</h2>
+    <div class="driver-form">
+      <label for="driverName">Tên xe cứu thương:</label>
+      <input type="text" id="driverName" value="Xe 05 - Cần Thơ" onchange="UpdateDriverStatus()" />
+
+      <label for="driverPhone">Số điện thoại liên hệ:</label>
+      <input type="text" id="driverPhone" value="0988776655" onchange="UpdateDriverStatus()" />
+
+      <label for="driverProvince">Tỉnh / Thành phố hoạt động:</label>
+      <select id="driverProvince" onchange="UpdateDriverStatus(true)">
+        <option value="Cần Thơ" selected>Cần Thơ</option>
+        <option value="TP. Hồ Chí Minh">TP. Hồ Chí Minh</option>
+        <option value="An Giang">An Giang</option>
+        <option value="Vĩnh Long">Vĩnh Long</option>
+        <option value="Đồng Tháp">Đồng Tháp</option>
+      </select>
+
+      <label for="driverStatus">Trạng thái hoạt động:</label>
+      <select id="driverStatus" onchange="UpdateDriverStatus()">
+        <option value="available">🟢 Sẵn sàng phục vụ</option>
+        <option value="busy">🔴 Đang chở bệnh nhân (Bận)</option>
+        <option value="offline">⚪ Tạm ngưng hoạt động</option>
+      </select>
+
+      <div class="driver-actions">
+        <button type="button" onclick="SimulateDrive()" class="action-btn secondary">🚗 Mô phỏng xe chạy</button>
+      </div>
+      <p id="driverStatusMsg" class="driver-status-msg"></p>
+    </div>
+  </aside>
+
   <div class="map-hud-controls">
-    <button id="zoomin" onclick="ZoomIn()" data-i18n-title="tt_zoom_in" title="Zoom In">+</button>
-    <button id="themetoggle" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">🌙</button>
-    <button id="satellitetoggle" onclick="ToggleSatellite()" data-i18n-title="tt_satellite" title="Satellite View">🛰️</button>
-    <button id="langtoggle" onclick="ToggleLanguage()" title="Switch language">EN</button>
-    <button id="zoomout" onclick="ZoomOut()" data-i18n-title="tt_zoom_out" title="Zoom Out">-</button>
+    <button id="zoomin" type="button" onclick="ZoomIn()" data-i18n-title="tt_zoom_in" title="Zoom In">+</button>
+    <button id="themetoggle" type="button" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">🌙</button>
+    <button id="satellitetoggle" type="button" onclick="ToggleSatellite()" data-i18n-title="tt_satellite" title="Satellite View">🛰️</button>
+    <button id="langtoggle" type="button" onclick="ToggleLanguage()" title="Switch language">EN</button>
+    <button id="zoomout" type="button" onclick="ZoomOut()" data-i18n-title="tt_zoom_out" title="Zoom Out">-</button>
   </div>
 
-  <div class="action-hud-controls">
-    <button id="locatebutton" onclick="FindLocation()" class="action-btn">
+  <div class="action-hud-controls" id="userControls">
+    <button id="locatebutton" type="button" onclick="FindLocation()" class="action-btn">
       <span class="btn-icon">📍</span> <span class="btn-label" data-i18n="locate_auto">Tự động định vị</span>
     </button>
-    <button id="locatemanualbutton" onclick="LocateManually()" class="action-btn secondary">
+    <button id="locatemanualbutton" type="button" onclick="LocateManually()" class="action-btn secondary">
       <span class="btn-icon">🎯</span> <span class="btn-label" data-i18n="locate_manual">Chọn thủ công</span>
     </button>
   </div>
@@ -50,7 +90,7 @@
   <div id="ambinfobox" class="info-card hidden">
     <div class="info-card-header">
       <h3 id="ambinfoboxname"></h3>
-      <button class="close-btn" onclick="CloseInfoBox()">✕</button>
+      <button class="close-btn" type="button" onclick="CloseInfoBox()">✕</button>
     </div>
     <p id="ambinfoboxphonenumber"></p>
     <p id="ambinfoboxeta" class="info-eta"></p>
@@ -58,10 +98,10 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
   <script src="i18n.js"></script>
   <script src="script.js"></script>
   <script src="scriptui.js"></script>
   <script type="module" src="firebase-data.js" onerror="loadLocalData()"></script>
-  <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
 </body>
 </html>

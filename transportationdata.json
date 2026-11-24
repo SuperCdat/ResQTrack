@@ -1,0 +1,67 @@
+{
+  "An Giang": [
+    {
+      "name": "Xe 01 - Cấp cứu Long Xuyên",
+      "phonenumber": "0901234001",
+      "pos": [10.38399, 105.43734]
+    },
+    {
+      "name": "Xe 02 - Hỗ trợ Châu Đốc",
+      "phonenumber": "0901234002",
+      "pos": [10.7011, 105.1116]
+    },
+    {
+      "name": "Xe 03 - Thiện nguyện Thoại Sơn",
+      "phonenumber": "0901234003",
+      "pos": [10.2542, 105.2654]
+    }
+  ],
+  "Cần Thơ": [
+    {
+      "name": "Xe 01 - Ninh Kiều",
+      "phonenumber": "0902234001",
+      "pos": [10.034185, 105.72255]
+    },
+    {
+      "name": "Xe 02 - Cái Răng",
+      "phonenumber": "0902234002",
+      "pos": [10.0085, 105.7412]
+    },
+    {
+      "name": "Xe 03 - Bình Thủy",
+      "phonenumber": "0902234003",
+      "pos": [10.0785, 105.7368]
+    }
+  ],
+  "Hồ Chí Minh": [
+    {
+      "name": "Xe 01 - Trung tâm Quận 5",
+      "phonenumber": "0903234001",
+      "pos": [10.754, 106.6634]
+    },
+    {
+      "name": "Xe 02 - Thủ Đức",
+      "phonenumber": "0903234002",
+      "pos": [10.8494, 106.7537]
+    }
+  ],
+  "Hà Nội": [
+    {
+      "name": "Xe 01 - Hoàn Kiếm",
+      "phonenumber": "0904234001",
+      "pos": [21.0285, 105.8542]
+    },
+    {
+      "name": "Xe 02 - Đống Đa",
+      "phonenumber": "0904234002",
+      "pos": [21.0168, 105.8256]
+    }
+  ],
+  "Đà Nẵng": [
+    {
+      "name": "Xe 01 - Hải Châu",
+      "phonenumber": "0905234001",
+      "pos": [16.0678, 108.2208]
+    }
+  ]
+}

@@ -18,9 +18,9 @@ function addAmblist(data) {
     window.currentAmbulanceData = data;
 
     if (typeof locfound !== "undefined" && locfound) {
-        calculateAllAmbulancesETA(data);
+        calculateAllAmbulancesETA(data, true);
     } else {
-        renderAmbulanceCards(data);
+        renderAmbulanceCards(data, true);
     }
 }
 
@@ -42,6 +42,7 @@ function renderAmbulanceCards(data, preserveSelection = false) {
     }
 
     listElement.replaceChildren();
+    activeCardElement = null;
 
     if (!Array.isArray(data) || data.length === 0) {
         const emptyMessage = document.createElement("div");
@@ -92,7 +93,13 @@ function renderAmbulanceCards(data, preserveSelection = false) {
             sub.textContent = t("card_hint");
         }
 
-        if (preserveSelection && ambulance === selectedAmbulance) {
+        const isSelected = preserveSelection && selectedAmbulance && (
+            ambulance === selectedAmbulance ||
+            (ambulance.id && selectedAmbulance.id && ambulance.id === selectedAmbulance.id) ||
+            (ambulance.name && selectedAmbulance.name && ambulance.name === selectedAmbulance.name)
+        );
+
+        if (isSelected) {
             card.classList.add("active");
             activeCardElement = card;
 
@@ -178,6 +185,7 @@ function selectAmbulance(ambulance, cardElement) {
     });
 
     cardElement.classList.add("active");
+    activeCardElement = cardElement;
 
     map.flyTo(ambulance.pos, Math.max(map.getZoom(), 14));
 
@@ -216,6 +224,7 @@ function CloseInfoBox() {
 
     selectedAmbulance = null;
     lastRouteMetrics = null;
+    activeCardElement = null;
 
     document.querySelectorAll(".amb-card").forEach(card => {
         card.classList.remove("active");

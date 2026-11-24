@@ -648,3 +648,96 @@ body.satellite-active .leaflet-tile {
     width: 130px;
   }
 }
+
+/* Swtich Vai trò */
+.role-switch-container {
+  position: absolute;
+  top: 20px;
+  left: 360px;
+  z-index: 1002;
+  display: flex;
+  gap: 6px;
+  background: var(--panel);
+  padding: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+
+.role-btn {
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.role-btn.active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Panel Tài xế */
+.driver-panel {
+  z-index: 1001;
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  bottom: 20px;
+  width: 320px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.driver-panel.hidden {
+  display: none !important;
+}
+
+.driver-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.driver-form input, .driver-form select {
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--text);
+}
+
+.driver-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.driver-status-msg {
+  color: var(--success);
+  font-weight: 600;
+  font-size: 12px;
+}
+
+#mainmenu {
+  max-height: calc(100vh - 96px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+#amblist {
+  max-height: calc(100vh - 210px);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
