@@ -1158,8 +1158,31 @@ function PublishDriverNow() {
     simulatedPos = [...(PROVINCE_CENTERS[province] || [10.034185, 105.72255])];
   }
 
-  UpdateDriverStatus(false);
-  setDriverMsg(`Đã cập nhật thông tin & vị trí (${province}) lên hệ thống.`, "var(--success)");
+  const finishPublish = () => {
+    UpdateDriverStatus(false);
+    if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
+      map.panTo(simulatedPos);
+    }
+    setDriverMsg(
+      `Đã cập nhật (${province}): [${simulatedPos[0].toFixed(5)}, ${simulatedPos[1].toFixed(5)}]`,
+      "var(--success)"
+    );
+  };
+
+  if (navigator.geolocation) {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        simulatedPos = [pos.coords.latitude, pos.coords.longitude];
+        finishPublish();
+      },
+      () => {
+        finishPublish();
+      },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 }
+    );
+  } else {
+    finishPublish();
+  }
 }
 
 (function bindDriverFormListeners() {

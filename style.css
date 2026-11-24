@@ -741,3 +741,16 @@ body.satellite-active .leaflet-tile {
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
+
+.driver-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+}
+
+.driver-actions .action-btn {
+  width: 100%;
+  white-space: nowrap;
+  justify-content: center;
+}
