@@ -175,29 +175,38 @@ ambulanceIcon = L.icon({
   tooltipAnchor: [0, 20]
 });
 
-fetch("./transportationdata.json")
-  .then(response => {
-    if (!response.ok) {
-      throw new Error(`HTTP error: ${response.status}`);
-    }
-    return response.json();
-  })
-  .then(dataraw => {
-    globalTransportData = dataraw;
+let currentProvince = null;
 
-    let defaultProvince = "Cần Thơ" in dataraw
-      ? "Cần Thơ"
-      : Object.keys(dataraw)[0];
+// Called by firebase-data.js with the full catalog ({ province: [ambulances] })
+function applyCatalog(dataraw) {
+  globalTransportData = dataraw;
 
-    if (defaultProvince) {
-      loadProvinceData(defaultProvince);
-    }
-  })
-  .catch(error => console.error("Error loading transportation data:", error));
+  let province = dataraw[currentProvince]
+    ? currentProvince
+    : ("Cần Thơ" in dataraw ? "Cần Thơ" : Object.keys(dataraw)[0]);
+
+  if (province) {
+    loadProvinceData(province);
+  }
+}
+
+// Fallback when Firebase is unavailable
+function loadLocalData() {
+  fetch("./transportationdata.json")
+    .then(response => {
+      if (!response.ok) {
+        throw new Error(`HTTP error: ${response.status}`);
+      }
+      return response.json();
+    })
+    .then(applyCatalog)
+    .catch(error => console.error("Error loading transportation data:", error));
+}
 
 function loadProvinceData(provinceName) {
   if (!globalTransportData[provinceName]) return;
 
+  currentProvince = provinceName;
   let data = globalTransportData[provinceName];
 
   if (typeof addAmblist === 'function') {
@@ -215,6 +224,7 @@ function loadProvinceData(provinceName) {
 
     marker.provinceName = provinceName;
     marker.ambName = data[i].name;
+    marker.ambId = data[i].id;
 
     marker.bindTooltip(`${localizeProvince(provinceName)} - ${localizeName(data[i].name)}`, {
       direction: "bottom",
@@ -226,6 +236,8 @@ function loadProvinceData(provinceName) {
   }
 
   console.log(`Loaded province: ${provinceName}`);
+
+  if (window.onProvinceLoaded) window.onProvinceLoaded(provinceName);
 }
 
 function detectClosestProvince(userLatLng) {
@@ -808,4 +820,39 @@ function refreshHospitalTexts() {
     m.getTooltip().update();
     if (m.isPopupOpen()) m.setPopupContent(hospitalPopup(m));
   });
+}
+
+
+/* ================= Live ambulance positions (from firebase-data.js) ================= */
+
+let liveRefreshTimer = null;
+
+function applyLivePosition(province, id, lat, lng) {
+  if (province !== currentProvince) return;
+
+  const amb = (globalTransportData[province] || []).find(a => a.id === id);
+  if (!amb) return;
+
+  // Mutate in place so cached route keys and the open route see the new position
+  amb.pos[0] = lat;
+  amb.pos[1] = lng;
+
+  const marker = currentMarkers.find(m => m.ambId === id);
+  if (marker) marker.setLatLng(amb.pos);
+
+  // ETA / route use the public OSRM server: refresh at most once per 10 s
+  if (!liveRefreshTimer) liveRefreshTimer = setTimeout(refreshAfterLive, 10000);
+}
+
+function refreshAfterLive() {
+  liveRefreshTimer = null;
+
+  if (locfound && currentAmbulanceData.length) {
+    calculateAllAmbulancesETA(currentAmbulanceData, true);
+  }
+
+  if (routingControl && selectedAmbulance) {
+    routingControl.options.fitSelectedRoutes = false; // don't jump the map
+    routingControl.spliceWaypoints(1, 1, L.latLng(selectedAmbulance.pos));
+  }
 }
