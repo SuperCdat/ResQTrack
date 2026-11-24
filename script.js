@@ -960,6 +960,7 @@ function resetDriverToRealLocation() {
     if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
       map.panTo(simulatedPos);
     }
+    UpdateDriverStatus(false);
     startDriverGpsWatch();
     setDriverMsg("Đã tắt mô phỏng — đang ở đúng vị trí thật của bạn.", "var(--success)");
     return;
@@ -980,6 +981,7 @@ function resetDriverToRealLocation() {
       if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
         map.panTo(simulatedPos);
       }
+      UpdateDriverStatus(false);
       startDriverGpsWatch();
       setDriverMsg("Đã tắt mô phỏng — đã quay về vị trí thật của bạn.");
     },
@@ -1004,12 +1006,12 @@ function startDriverGpsWatch() {
       if (driverSimInterval) return;
 
       const accuracy = pos.coords.accuracy || 0;
-      if (!firstFix && accuracy > 150) return;
+      if (!firstFix && accuracy > 1000) return;
 
       const lat = pos.coords.latitude;
       const lng = pos.coords.longitude;
       const distMeters = L.latLng(lat, lng).distanceTo(L.latLng(simulatedPos[0], simulatedPos[1]));
-      const moved = !firstFix && distMeters > 8;
+      const moved = !firstFix && distMeters > 5;
 
       simulatedPos = [lat, lng];
 
@@ -1054,7 +1056,12 @@ function SwitchRole(role) {
     if (driverMenu) driverMenu.classList.remove("hidden");
     if (userControls) userControls.style.display = "none";
     startDriverGpsWatch();
+    UpdateDriverStatus(false);
   } else {
+    clearDriverSimMarker();
+    if (driverSimInterval) {
+      stopDriverSim();
+    }
     if (userMenu) userMenu.style.display = "";
     if (driverMenu) driverMenu.classList.add("hidden");
     if (userControls) userControls.style.display = "flex";
@@ -1134,6 +1141,39 @@ function UpdateDriverStatus(shouldPan = false) {
     setDriverMsg(`Xe (${province}) đang tạm ngưng hoạt động.`, "var(--subtext)");
   }
 }
+
+function PublishDriverNow() {
+  if (driverSimInterval) {
+    setDriverMsg(
+      "Đang mô phỏng riêng trên máy — người dùng vẫn thấy vị trí thật.",
+      "var(--success)"
+    );
+    return;
+  }
+
+  const provinceEl = document.getElementById("driverProvince");
+  const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
+
+  if (!Array.isArray(simulatedPos) || simulatedPos.length < 2) {
+    simulatedPos = [...(PROVINCE_CENTERS[province] || [10.034185, 105.72255])];
+  }
+
+  UpdateDriverStatus(false);
+  setDriverMsg(`Đã cập nhật thông tin & vị trí (${province}) lên hệ thống.`, "var(--success)");
+}
+
+(function bindDriverFormListeners() {
+  const ids = ["driverName", "driverPhone", "driverProvince", "driverStatus"];
+  ids.forEach((id) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const evt = el.tagName === "SELECT" ? "change" : "input";
+    el.addEventListener(evt, () => {
+      if (driverSimInterval) return;
+      UpdateDriverStatus(id === "driverProvince");
+    });
+  });
+})();
 
 function buildRoadRoute(startLatLng, endLatLng, onReady) {
   if (!window.L || !L.Routing || !L.Routing.osrmv1) {

@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
 import {
-  getDatabase, ref, set, update, onValue, onChildAdded, onChildChanged, off, goOffline, goOnline
+  getDatabase, ref, update, onValue, onChildAdded, onChildChanged, onChildRemoved, off, goOnline
 } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
 
 const app = initializeApp({
@@ -43,7 +43,7 @@ let catalogShown = false;
 
 function fallbackToLocal(reason) {
   console.error("Using local data:", reason);
-  if (!catalogShown) loadLocalData();
+  if (!catalogShown && typeof loadLocalData === "function") loadLocalData();
 }
 
 setTimeout(() => { if (!catalogShown) fallbackToLocal("Firebase timeout"); }, 4000);
@@ -55,7 +55,7 @@ onValue(ref(rtdb, "catalogVersion"), async (snap) => {
     const data = cachedCatalog(version) || await fetchCatalog(version);
     liveProvince = null;
     catalogShown = true;
-    applyCatalog(data);
+    if (typeof applyCatalog === "function") applyCatalog(data);
   } catch (e) {
     fallbackToLocal(e);
   }
@@ -96,6 +96,9 @@ function syncRemoteDriverNode(province, id, payload) {
 
     if (province === currentProvince && typeof applyLivePosition === "function") {
       applyLivePosition(province, id, payload.lat, payload.lng);
+      if (typeof addAmblist === "function") {
+        addAmblist(list);
+      }
     }
   } else {
     list.push({
@@ -132,13 +135,28 @@ window.onProvinceLoaded = (province) => {
     }
   };
 
+  const handleRemoved = (snap) => {
+    const id = snap.key;
+    if (!id || typeof globalTransportData === "undefined" || !globalTransportData[province]) return;
+    const list = globalTransportData[province];
+    const idx = list.findIndex((a) => a.id === id);
+    if (idx >= 0) {
+      list.splice(idx, 1);
+      if (province === currentProvince && typeof loadProvinceData === "function") {
+        loadProvinceData(province);
+      }
+    }
+  };
+
   onChildAdded(liveRef, handleSnapshot);
   onChildChanged(liveRef, handleSnapshot);
+  onChildRemoved(liveRef, handleRemoved);
 };
 
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) goOffline(rtdb);
-  else goOnline(rtdb);
+  if (!document.hidden) {
+    goOnline(rtdb);
+  }
 });
 
 window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
