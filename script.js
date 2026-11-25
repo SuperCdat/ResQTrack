@@ -37,8 +37,21 @@ function ToggleDrawer() {
   const menu = document.getElementById("mainmenu");
   if (!menu) return;
 
-  // Phones: bottom sheet expands. Desktop: side panel collapses.
+  // Phones: bottom sheet expands. Desktop: side panel slides off to the left.
   menu.classList.toggle(window.innerWidth > 768 ? "collapsed" : "expanded");
+}
+
+function ToggleDriverDrawer(event) {
+  // The sign-out button lives in the header; let it do its own thing.
+  if (event && event.target.closest && event.target.closest("button")) return;
+
+  // Collapsing the driver panel is a mobile-only affordance.
+  if (window.innerWidth > 768) return;
+
+  const menu = document.getElementById("drivermenu");
+  if (!menu) return;
+
+  menu.classList.toggle("collapsed");
 }
 
 let mapOptions = {
@@ -654,18 +667,11 @@ function refreshAfterLive() {
 }
 
 
-/* ================= Role Switcher, GPS & Simulation ================= */
+/* ================= Driver state, GPS & account ================= */
 
 let currentRole = "user";
-let driverSimInterval = null;
-let driverRouteCoords = [];
-let driverRouteIndex = 0;
 let driverGpsWatchId = null;
-let simStartPos = null;
 let simulatedPos = [10.034185, 105.72255];
-
-let driverSimMarker = null;
-let realPosBeforeSim = null;
 
 let driverUser = null;              // Firebase Auth user while a driver is signed in
 let driverPublishedProvince = null; // province whose live/ node currently holds this driver
@@ -701,69 +707,11 @@ function setDriverMsg(text, color = "var(--subtext)") {
   msgEl.style.color = color;
 }
 
-function clearDriverSimMarker() {
-  if (driverSimMarker && typeof map !== "undefined" && map && map.hasLayer(driverSimMarker)) {
-    map.removeLayer(driverSimMarker);
-  }
-  driverSimMarker = null;
-}
-
-function stopDriverSim(msgText = null) {
-  if (driverSimInterval) {
-    clearInterval(driverSimInterval);
-    driverSimInterval = null;
-  }
-  driverRouteCoords = [];
-  driverRouteIndex = 0;
-  if (msgText) setDriverMsg(msgText);
-}
-
 function stopDriverGpsWatch() {
   if (driverGpsWatchId !== null && navigator.geolocation) {
     navigator.geolocation.clearWatch(driverGpsWatchId);
     driverGpsWatchId = null;
   }
-}
-
-function resetDriverToRealLocation() {
-  clearDriverSimMarker();
-
-  const restoredPos = realPosBeforeSim ? [...realPosBeforeSim] : [...simulatedPos];
-  realPosBeforeSim = null;
-  simStartPos = null;
-  simulatedPos = restoredPos;
-
-  if (!navigator.geolocation) {
-    if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
-      map.panTo(simulatedPos);
-    }
-    UpdateDriverStatus(false);
-    startDriverGpsWatch();
-    setDriverMsg("Đã tắt mô phỏng — đang ở đúng vị trí thật của bạn.", "var(--success)");
-    return;
-  }
-
-  setDriverMsg("Đã tắt mô phỏng, đang lấy lại vị trí GPS thật...");
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      simulatedPos = [pos.coords.latitude, pos.coords.longitude];
-      if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
-        map.panTo(simulatedPos);
-      }
-      UpdateDriverStatus(false);
-      startDriverGpsWatch();
-      setDriverMsg("Đã tắt mô phỏng — bạn đang ở đúng vị trí GPS thật.", "var(--success)");
-    },
-    () => {
-      if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
-        map.panTo(simulatedPos);
-      }
-      UpdateDriverStatus(false);
-      startDriverGpsWatch();
-      setDriverMsg("Đã tắt mô phỏng — đã quay về vị trí thật của bạn.");
-    },
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 6000 }
-  );
 }
 
 function startDriverGpsWatch() {
@@ -772,7 +720,6 @@ function startDriverGpsWatch() {
     return;
   }
 
-  stopDriverSim();
   stopDriverGpsWatch();
   setDriverMsg("Đang theo dõi vị trí thực tế của bạn...", "var(--success)");
 
@@ -780,8 +727,6 @@ function startDriverGpsWatch() {
 
   driverGpsWatchId = navigator.geolocation.watchPosition(
     (pos) => {
-      if (driverSimInterval) return;
-
       const accuracy = pos.coords.accuracy || 0;
       if (!firstFix && accuracy > 1000) return;
 
@@ -967,9 +912,8 @@ async function SubmitAuth(event) {
 }
 
 async function DriverSignOut() {
-  // Stop anything that could re-publish, then take the car off the map before the token goes away.
+  // Stop the GPS watch, then take the car off the map before the token goes away.
   stopDriverGpsWatch();
-  stopDriverSim();
 
   if (driverUser && driverPublishedProvince && window.removeDriverLive) {
     await window.removeDriverLive(driverPublishedProvince, driverUser.uid);
@@ -984,8 +928,6 @@ window.onDriverAuthChanged = async function (user) {
   if (!user) {
     driverUser = null;
     driverPublishedProvince = null;
-    clearDriverSimMarker();
-    stopDriverSim();
     stopDriverGpsWatch();
     document.body.classList.remove("driver-mode");
     return;
@@ -1045,7 +987,7 @@ function UpdateDriverStatus(shouldPan = false) {
   const phonenumber = phoneEl ? phoneEl.value : "";
   const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
 
-  if (shouldPan && !driverSimInterval && PROVINCE_CENTERS[province]) {
+  if (shouldPan && PROVINCE_CENTERS[province]) {
     simulatedPos = [...PROVINCE_CENTERS[province]];
     if (typeof map !== "undefined" && map && typeof map.panTo === "function") {
       map.panTo(simulatedPos);
@@ -1081,7 +1023,7 @@ function UpdateDriverStatus(shouldPan = false) {
     });
   }
 
-  if (driverSimInterval || driverGpsWatchId !== null) return;
+  if (driverGpsWatchId !== null) return;
   if (status === "busy") {
     setDriverMsg(`Xe (${province}) đang bận - đã ẩn khỏi danh sách sẵn sàng.`, "var(--accent)");
   } else if (status === "available") {
@@ -1092,14 +1034,6 @@ function UpdateDriverStatus(shouldPan = false) {
 }
 
 function PublishDriverNow() {
-  if (driverSimInterval) {
-    setDriverMsg(
-      "Đang mô phỏng riêng trên máy — người dùng vẫn thấy vị trí thật.",
-      "var(--success)"
-    );
-    return;
-  }
-
   const provinceEl = document.getElementById("driverProvince");
   const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
 
@@ -1245,7 +1179,6 @@ function saveDriverProfile() {
 function onCareChanged() {
   if (!driverUser) return;
   saveDriverProfile();
-  if (driverSimInterval) return;
   UpdateDriverStatus(false);
 }
 
@@ -1264,93 +1197,7 @@ function onCareChanged() {
       if ((id === "driverName" || id === "driverPhone" || id === "driverProvince") && driverUser && window.driverAuth) {
         saveDriverProfile();
       }
-      if (driverSimInterval) return;
       UpdateDriverStatus(id === "driverProvince");
     });
   });
 })();
-
-function buildRoadRoute(startLatLng, endLatLng, onReady) {
-  if (!window.L || !L.Routing || !L.Routing.osrmv1) {
-    onReady(null);
-    return;
-  }
-  L.Routing.osrmv1().route(
-    [L.Routing.waypoint(startLatLng), L.Routing.waypoint(endLatLng)],
-    (err, routes) => {
-      if (err || !routes || !routes[0] || !routes[0].coordinates || routes[0].coordinates.length < 2) {
-        onReady(null);
-        return;
-      }
-      onReady(routes[0].coordinates.map(pt => [pt.lat, pt.lng]));
-    }
-  );
-}
-
-function SimulateDrive() {
-  const provinceEl = document.getElementById("driverProvince");
-  const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
-
-  if (driverSimInterval) {
-    stopDriverSim();
-    resetDriverToRealLocation();
-    return;
-  }
-
-  stopDriverGpsWatch();
-  clearDriverSimMarker();
-  realPosBeforeSim = [...simulatedPos];
-  simStartPos = [...simulatedPos];
-  let simCurrentPos = [...simulatedPos];
-
-  setDriverMsg("Đang tìm tuyến đường mô phỏng riêng cho tài xế...");
-
-  const start = L.latLng(simCurrentPos[0], simCurrentPos[1]);
-  const center = PROVINCE_CENTERS[province] || simCurrentPos;
-  const dest = L.latLng(center[0] + 0.012, center[1] + 0.014);
-
-  buildRoadRoute(start, dest, (coords) => {
-    if (!coords) {
-      realPosBeforeSim = null;
-      simStartPos = null;
-      startDriverGpsWatch();
-      setDriverMsg("Không lấy được tuyến đường OSRM, thử lại sau.");
-      return;
-    }
-
-    driverRouteCoords = coords;
-    driverRouteIndex = 0;
-
-    if (typeof map !== "undefined" && map) {
-      driverSimMarker = L.circleMarker(simCurrentPos, {
-        radius: 8,
-        color: "#ffffff",
-        weight: 2,
-        fillColor: "#f59e0b",
-        fillOpacity: 1
-      }).addTo(map);
-      driverSimMarker.bindTooltip("Xe mô phỏng (chỉ tài xế thấy)", {
-        direction: "top"
-      });
-      if (typeof map.panTo === "function") {
-        map.panTo(simCurrentPos);
-      }
-    }
-
-    setDriverMsg("Đang mô phỏng riêng trên máy tài xế — người dùng vẫn thấy vị trí thật.", "var(--success)");
-
-    driverSimInterval = setInterval(() => {
-      if (driverRouteIndex >= driverRouteCoords.length) {
-        stopDriverSim();
-        resetDriverToRealLocation();
-        return;
-      }
-
-      simCurrentPos = [...driverRouteCoords[driverRouteIndex]];
-      if (driverSimMarker) {
-        driverSimMarker.setLatLng(simCurrentPos);
-      }
-      driverRouteIndex += 2;
-    }, 1500);
-  });
-}
