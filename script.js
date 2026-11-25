@@ -39,43 +39,6 @@ function ToggleDrawer() {
   if (menu) menu.classList.toggle("expanded");
 }
 
-function ToggleEquipmentPanel() {
-  const panel = document.getElementById("equipmentPanel");
-  const chevron = document.getElementById("eqChevron");
-  const btn = document.querySelector(".equipment-toggle-btn");
-  if (!panel) return;
-
-  const isHidden = panel.classList.toggle("hidden");
-  if (chevron) chevron.textContent = isHidden ? "▾" : "▴";
-  if (btn) btn.setAttribute("aria-expanded", String(!isHidden));
-}
-
-function StepBeds(delta) {
-  const input = document.getElementById("driverBeds");
-  if (!input) return;
-
-  const current = parseInt(input.value || "1", 10) || 1;
-  const next = Math.min(6, Math.max(1, current + delta));
-  input.value = String(next);
-  input.dispatchEvent(new Event("change"));
-}
-
-function getDriverEquipment() {
-  const bedsInput = document.getElementById("driverBeds");
-  const rawBeds = parseInt(bedsInput ? bedsInput.value : "1", 10);
-  const beds = Number.isFinite(rawBeds) ? Math.min(6, Math.max(1, rawBeds)) : 1;
-
-  return {
-    doctor: Boolean(document.getElementById("driverDoctor")?.checked),
-    paramedic: Boolean(document.getElementById("driverParamedic")?.checked),
-    ventilator: Boolean(document.getElementById("driverVentilator")?.checked),
-    aed: Boolean(document.getElementById("driverAed")?.checked),
-    trauma: Boolean(document.getElementById("driverTrauma")?.checked),
-    infusion: Boolean(document.getElementById("driverInfusion")?.checked),
-    beds
-  };
-}
-
 let mapOptions = {
   center: [10.38399, 105.43734],
   zoom: 10,
@@ -718,8 +681,8 @@ let simulatedPos = [10.034185, 105.72255];
 let driverSimMarker = null;
 let realPosBeforeSim = null;
 
-let driverUser = null;
-let driverPublishedProvince = null;
+let driverUser = null;              // Firebase Auth user while a driver is signed in
+let driverPublishedProvince = null; // province whose live/ node currently holds this driver
 
 const PROVINCE_CENTERS = {
   "Cần Thơ": [10.034185, 105.72255],
@@ -952,6 +915,7 @@ async function SubmitAuth(event) {
 }
 
 async function DriverSignOut() {
+  // Stop anything that could re-publish, then take the car off the map before the token goes away.
   stopDriverGpsWatch();
   stopDriverSim();
 
@@ -963,6 +927,7 @@ async function DriverSignOut() {
   if (window.driverAuth) await window.driverAuth.signOut();
 }
 
+// Called by firebase-data.js whenever the sign-in state changes (including on page load)
 window.onDriverAuthChanged = async function (user) {
   if (!user) {
     driverUser = null;
@@ -1025,7 +990,6 @@ function UpdateDriverStatus(shouldPan = false) {
   const name = (nameEl && nameEl.value) || driverUser.email;
   const phonenumber = phoneEl ? phoneEl.value : "";
   const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
-  const equipment = getDriverEquipment();
 
   if (shouldPan && !driverSimInterval && PROVINCE_CENTERS[province]) {
     simulatedPos = [...PROVINCE_CENTERS[province]];
@@ -1039,10 +1003,10 @@ function UpdateDriverStatus(shouldPan = false) {
     name,
     phonenumber,
     status,
-    pos: [...simulatedPos],
-    equipment
+    pos: [...simulatedPos]
   };
 
+  // Moved to another province, or went offline: take the old live node down
   if (driverPublishedProvince && (driverPublishedProvince !== province || status === "offline")) {
     if (typeof window.removeDriverLive === "function") {
       window.removeDriverLive(driverPublishedProvince, car.id);
@@ -1057,8 +1021,7 @@ function UpdateDriverStatus(shouldPan = false) {
     window.pushDriverLivePos(province, car.id, car.pos[0], car.pos[1], {
       name: car.name,
       phonenumber: car.phonenumber,
-      status: car.status,
-      equipment: car.equipment
+      status: car.status
     });
   }
 
@@ -1116,19 +1079,7 @@ function PublishDriverNow() {
 }
 
 (function bindDriverFormListeners() {
-  const ids = [
-    "driverName",
-    "driverPhone",
-    "driverProvince",
-    "driverStatus",
-    "driverDoctor",
-    "driverParamedic",
-    "driverVentilator",
-    "driverAed",
-    "driverTrauma",
-    "driverInfusion",
-    "driverBeds"
-  ];
+  const ids = ["driverName", "driverPhone", "driverProvince", "driverStatus"];
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;

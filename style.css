@@ -165,15 +165,6 @@ body.driver-mode #mainmenu { display: none; }
 .card-info { flex: 1; min-width: 0; }
 .card-name { font-size: 14px; font-weight: 500; line-height: 1.3; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .card-sub { margin-top: 2px; font-size: 12px; color: var(--subtext); line-height: 1.3; }
-.card-eq {
-  margin-top: 4px;
-  font-size: 11px;
-  color: var(--accent);
-  font-weight: 500;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .empty-message { padding: 24px 12px; text-align: center; font-size: 13px; line-height: 1.5; color: var(--subtext); }
 
 /* ---------- Floating map controls ---------- */
@@ -273,7 +264,7 @@ body.driver-mode .action-hud-controls { display: none; }
   z-index: 1002;
   right: 16px;
   bottom: 124px;
-  width: 310px;
+  width: 300px;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -288,23 +279,6 @@ body.driver-mode .action-hud-controls { display: none; }
 .close-btn { flex-shrink: 0; width: 28px; height: 28px; border: none; border-radius: 50%; background: transparent; color: var(--subtext); font-size: 14px; cursor: pointer; }
 .close-btn:hover { background: var(--card-hover); color: var(--text); }
 #ambinfoboxphonenumber, .info-eta { margin: 0; font-size: 13px; line-height: 1.5; color: var(--subtext); }
-
-.equipment-badges {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.equipment-badges:empty { display: none; }
-.badge-item {
-  font-size: 11.5px;
-  line-height: 1.25;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent);
-  font-weight: 500;
-}
-
 .call-action-btn {
   align-items: center; justify-content: center; gap: 6px;
   height: 40px;
@@ -320,28 +294,28 @@ body.dark-mode .call-action-btn { color: #202124; }
 .call-action-btn:hover { background: var(--success-hover); }
 
 /* ---------- Floating-label fields ---------- */
-.field { position: relative; margin-top: 14px; }
+.field { position: relative; margin-top: 16px; }
 .field input, .field select {
   width: 100%;
-  height: 46px;
+  height: 48px;
   padding: 0 12px;
   border: 1px solid var(--border-strong);
   border-radius: var(--radius);
   background: transparent;
   color: var(--text);
   font: inherit;
-  font-size: 14.5px;
+  font-size: 15px;
   outline: none;
 }
 .field select option { background: var(--panel); color: var(--text); }
 .field input:focus, .field select:focus { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
 .field label {
   position: absolute;
-  left: 10px; top: 13px;
+  left: 10px; top: 14px;
   padding: 0 4px;
   background: var(--panel);
   color: var(--subtext);
-  font-size: 14.5px;
+  font-size: 15px;
   pointer-events: none;
   transition: top 0.15s ease, font-size 0.15s ease, color 0.15s ease;
 }
@@ -350,139 +324,10 @@ body.dark-mode .call-action-btn { color: #202124; }
 .field select + label { top: -8px; font-size: 12px; }
 .field input:focus + label, .field select:focus + label { color: var(--accent); }
 
-/* ---------- Driver panel & Equipment Chips ---------- */
-.driver-account { margin: 0 0 2px; font-size: 13px; color: var(--subtext); overflow: hidden; text-overflow: ellipsis; }
-
-.equipment-toggle-btn {
-  width: 100%;
-  margin-top: 12px;
-  padding: 9px 12px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--card-hover);
-  color: var(--text);
-  font-size: 13.5px;
-  font-weight: 500;
-  cursor: pointer;
-  transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-.equipment-toggle-btn:hover {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-  color: var(--accent);
-}
-
-.equipment-panel {
-  margin-top: 8px;
-  padding: 10px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--panel);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.equipment-panel.hidden { display: none; }
-
-.eq-group-label {
-  font-size: 11px;
-  font-weight: 500;
-  color: var(--subtext);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-.eq-chip-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
-
-.eq-chip {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 36px;
-  padding: 6px 8px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  background: var(--bg);
-  color: var(--text);
-  font-size: 12px;
-  line-height: 1.25;
-  cursor: pointer;
-  user-select: none;
-  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-}
-.eq-chip input[type="checkbox"] {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
-}
-.eq-chip:has(input:checked) {
-  background: var(--accent-soft);
-  border-color: var(--accent);
-  color: var(--accent);
-  font-weight: 500;
-}
-
-.eq-beds-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding-top: 4px;
-  border-top: 1px solid var(--border);
-}
-.eq-beds-label {
-  font-size: 12.5px;
-  font-weight: 500;
-  color: var(--text);
-}
-.eq-stepper {
-  display: inline-flex;
-  align-items: center;
-  border: 1px solid var(--border-strong);
-  border-radius: 999px;
-  overflow: hidden;
-  background: var(--bg);
-}
-.stepper-btn {
-  width: 30px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  font-size: 15px;
-  font-weight: 500;
-  cursor: pointer;
-}
-.stepper-btn:hover { background: var(--card-hover); }
-.eq-stepper input[type="number"] {
-  width: 32px;
-  height: 28px;
-  border: none;
-  background: transparent;
-  color: var(--text);
-  text-align: center;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 600;
-  outline: none;
-  appearance: textfield;
-  -moz-appearance: textfield;
-}
-.eq-stepper input[type="number"]::-webkit-outer-spin-button,
-.eq-stepper input[type="number"]::-webkit-inner-spin-button {
-  -webkit-appearance: none;
-  margin: 0;
-}
-
-.driver-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 14px; }
-.driver-status-msg { min-height: 18px; margin: 10px 0 0; font-size: 13px; font-weight: 500; color: var(--success); }
+/* ---------- Driver panel ---------- */
+.driver-account { margin: 0 0 4px; font-size: 13px; color: var(--subtext); overflow: hidden; text-overflow: ellipsis; }
+.driver-actions { display: flex; flex-direction: column; gap: 10px; margin-top: 20px; }
+.driver-status-msg { min-height: 18px; margin: 12px 0 0; font-size: 13px; font-weight: 500; color: var(--success); }
 
 /* ---------- Auth dialog ---------- */
 .auth-backdrop {
@@ -511,6 +356,7 @@ body.dark-mode .call-action-btn { color: #202124; }
 
 /* ---------- Mobile ---------- */
 @media (max-width: 768px) {
+  /* Bottom sheet */
   #mainmenu, #drivermenu {
     left: 0; right: 0;
     top: auto; bottom: 0;
@@ -526,7 +372,7 @@ body.dark-mode .call-action-btn { color: #202124; }
     border-radius: 2px;
     background: var(--border-strong);
   }
-  #drivermenu { max-height: 76dvh; }
+  #drivermenu { max-height: 75dvh; }
 
   .menu-header { margin-bottom: 0; cursor: pointer; user-select: none; }
   #mainmenu.expanded .menu-header { margin-bottom: 12px; }
@@ -536,6 +382,7 @@ body.dark-mode .call-action-btn { color: #202124; }
   .menu-content { flex: none; max-height: 0; overflow: hidden; transition: max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1); }
   #mainmenu.expanded .menu-content { max-height: min(50dvh, 420px); }
 
+  /* Selecting an ambulance swaps the list sheet for the details sheet */
   body.has-info #mainmenu { display: none; }
   .info-card {
     left: 0; right: 0; bottom: 0;
@@ -546,8 +393,9 @@ body.dark-mode .call-action-btn { color: #202124; }
 
   .map-hud-controls { top: calc(72px + var(--safe-top)); right: 12px; }
   .account-chip { right: 12px; }
-  .zoom-controls { display: none; }
+  .zoom-controls { display: none; }  /* pinch to zoom */
 
+  /* Round floating buttons above the collapsed sheet */
   .action-hud-controls {
     right: 12px;
     bottom: calc(96px + var(--safe-bottom));
@@ -559,6 +407,7 @@ body.dark-mode .call-action-btn { color: #202124; }
   .action-hud-controls .btn-icon { font-size: 20px; }
   #mainmenu.expanded ~ .action-hud-controls, body.has-info .action-hud-controls { display: none; }
 
+  /* Keep the map attribution clear of the sheet */
   .leaflet-bottom.leaflet-right { margin-bottom: calc(72px + var(--safe-bottom)); }
   body.has-info .leaflet-bottom.leaflet-right, body.driver-mode .leaflet-bottom.leaflet-right { display: none; }
 

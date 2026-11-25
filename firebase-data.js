@@ -98,19 +98,12 @@ function syncRemoteDriverNode(province, id, payload) {
     list[idx].pos = [payload.lat, payload.lng];
     if (payload.name) list[idx].name = payload.name;
     if (payload.phonenumber) list[idx].phonenumber = payload.phonenumber;
-    if (payload.equipment && typeof payload.equipment === "object") {
-      list[idx].equipment = payload.equipment;
-    }
     list[idx].status = status;
 
     if (province === currentProvince && typeof applyLivePosition === "function") {
       applyLivePosition(province, id, payload.lat, payload.lng);
       if (typeof addAmblist === "function") {
         addAmblist(list);
-      }
-      if (typeof selectedAmbulance !== "undefined" && selectedAmbulance && selectedAmbulance.id === id) {
-        selectedAmbulance = list[idx];
-        if (typeof renderInfoBox === "function") renderInfoBox();
       }
     }
   } else {
@@ -119,8 +112,7 @@ function syncRemoteDriverNode(province, id, payload) {
       name: payload.name || `Xe trực tuyến (${id.slice(-4)})`,
       phonenumber: payload.phonenumber || "",
       status: "available",
-      pos: [payload.lat, payload.lng],
-      equipment: payload.equipment && typeof payload.equipment === "object" ? payload.equipment : null
+      pos: [payload.lat, payload.lng]
     });
 
     if (province === currentProvince && typeof loadProvinceData === "function") {
@@ -140,7 +132,7 @@ window.onProvinceLoaded = (province) => {
     const v = snap.val();
     if (!v) return;
 
-    if (typeof v.name === "string" || typeof v.phonenumber === "string" || typeof v.status === "string" || v.equipment) {
+    if (typeof v.name === "string" || typeof v.phonenumber === "string" || typeof v.status === "string") {
       syncRemoteDriverNode(province, snap.key, v);
     } else if (typeof v.lat === "number" && typeof v.lng === "number") {
       if (typeof applyLivePosition === "function") {
@@ -205,6 +197,7 @@ window.removeDriverLive = async (province, carId) => {
   }
 };
 
+// A driver whose tab closes or loses connection disappears from the map by itself
 let disconnectPath = null;
 
 window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
@@ -221,7 +214,6 @@ window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
         name: meta.name || "",
         phonenumber: meta.phonenumber || "",
         status: meta.status || "available",
-        equipment: meta.equipment || null,
         updatedAt: Date.now()
       });
     } else {
