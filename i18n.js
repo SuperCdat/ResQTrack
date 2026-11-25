@@ -1,7 +1,6 @@
 const I18N = {
   vi: {
     doc_title: "ResQTrack - Điều phối cấp cứu",
-    live: "Trực tiếp",
     section_title: "Các xe cứu thương sẵn sàng:",
     locate_auto: "Tự động định vị",
     locate_manual: "Chọn thủ công",
@@ -41,6 +40,26 @@ const I18N = {
     err_invalid_email: "Email không hợp lệ.",
     err_network: "Lỗi mạng. Vui lòng kiểm tra kết nối.",
     err_generic: "Có lỗi xảy ra. Vui lòng thử lại.",
+    loading: "Đang tải...",
+    locating: "Đang định vị...",
+    auth_loc_hint: "Khi bấm Tạo tài khoản, trình duyệt sẽ xin quyền vị trí để tự chọn sẵn tỉnh/thành hoạt động của bạn.",
+    auth_locating: "Đang xác định vị trí của bạn...",
+    care_title_driver: "Trang bị & thuốc trên xe",
+    care_oxygen: "Bình oxy",
+    equip_aed: "Máy sốc tim (AED)",
+    equip_ecg: "Máy theo dõi tim (ECG)",
+    equip_suction: "Máy hút dịch",
+    equip_ventilator: "Máy thở",
+    equip_splint: "Nẹp & ván cố định cột sống",
+    care_meds_title: "Thuốc trên xe (tên thuốc – dùng cho tình trạng nào)",
+    care_med_name: "Tên thuốc",
+    care_med_for: "Dùng cho tình trạng",
+    care_add_med: "+ Thêm thuốc",
+    care_remove: "Xóa",
+    care_notes: "Ghi chú thêm",
+    care_user_title: "Trang bị trên xe",
+    care_meds_user: "Thuốc trên xe",
+    care_disclaimer: "Do tài xế tự khai báo",
     lang_btn: "EN",
     info_select_title: "Chọn một xe cứu thương",
     phone_placeholder: "Sđt: ---",
@@ -53,7 +72,7 @@ const I18N = {
       "⏱️ Dự kiến: <b>{min} phút</b> | 📏 Khoảng cách: <b>{km} km</b>" +
       '<br><small style="opacity: 0.75;">' +
       "(Thời gian ước tính, chưa có dữ liệu giao thông trực tiếp)</small>",
-    card_eta: "⚡ {min} phút ({km} km)",
+    card_eta: "{min} phút ({km} km)",
     card_hint: "Chọn để xem thông tin và tuyến đường",
     card_calculating: "⏳ Đang tính toán...",
     empty_list: "Không tìm thấy xe cứu thương trong khu vực này.",
@@ -69,7 +88,6 @@ const I18N = {
   },
   en: {
     doc_title: "ResQTrack - Emergency Dispatch",
-    live: "Live",
     section_title: "Available ambulances:",
     locate_auto: "Auto locate",
     locate_manual: "Pick manually",
@@ -109,6 +127,26 @@ const I18N = {
     err_invalid_email: "Invalid email address.",
     err_network: "Network error. Please check your connection.",
     err_generic: "Something went wrong. Please try again.",
+    loading: "Loading...",
+    locating: "Locating...",
+    auth_loc_hint: "When you tap Create account, your browser will ask for location access so we can preselect your province/city.",
+    auth_locating: "Finding your location...",
+    care_title_driver: "On-board equipment & medication",
+    care_oxygen: "Oxygen cylinder",
+    equip_aed: "Defibrillator (AED)",
+    equip_ecg: "ECG monitor",
+    equip_suction: "Suction unit",
+    equip_ventilator: "Ventilator",
+    equip_splint: "Splints & spinal board",
+    care_meds_title: "Medication on board (medication – condition it is for)",
+    care_med_name: "Medication",
+    care_med_for: "Used for (condition)",
+    care_add_med: "+ Add medication",
+    care_remove: "Remove",
+    care_notes: "Other notes",
+    care_user_title: "On-board equipment",
+    care_meds_user: "Medication on board",
+    care_disclaimer: "Self-reported by the driver",
     lang_btn: "VI",
     info_select_title: "Select an ambulance",
     phone_placeholder: "Phone: ---",
@@ -121,7 +159,7 @@ const I18N = {
       "⏱️ Estimated: <b>{min} min</b> | 📏 Distance: <b>{km} km</b>" +
       '<br><small style="opacity: 0.75;">' +
       "(Estimated time, no live traffic data)</small>",
-    card_eta: "⚡ {min} min ({km} km)",
+    card_eta: "{min} min ({km} km)",
     card_hint: "Select to view details and route",
     card_calculating: "⏳ Calculating...",
     empty_list: "No ambulances found in this area.",
@@ -186,6 +224,10 @@ function applyStaticTranslations() {
 
   document.querySelectorAll("[data-i18n-title]").forEach((el) => {
     el.title = t(el.dataset.i18nTitle);
+  });
+
+  document.querySelectorAll("[data-i18n-placeholder]").forEach((el) => {
+    el.placeholder = t(el.dataset.i18nPlaceholder);
   });
 }
 

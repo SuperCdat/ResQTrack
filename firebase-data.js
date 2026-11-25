@@ -99,9 +99,13 @@ function syncRemoteDriverNode(province, id, payload) {
     if (payload.name) list[idx].name = payload.name;
     if (payload.phonenumber) list[idx].phonenumber = payload.phonenumber;
     list[idx].status = status;
+    list[idx].care = payload.care || null;
 
     if (province === currentProvince && typeof applyLivePosition === "function") {
       applyLivePosition(province, id, payload.lat, payload.lng);
+      if (selectedAmbulance && selectedAmbulance.id === id && typeof renderInfoBox === "function") {
+        renderInfoBox();
+      }
       if (typeof addAmblist === "function") {
         addAmblist(list);
       }
@@ -112,6 +116,7 @@ function syncRemoteDriverNode(province, id, payload) {
       name: payload.name || `Xe trực tuyến (${id.slice(-4)})`,
       phonenumber: payload.phonenumber || "",
       status: "available",
+      care: payload.care || null,
       pos: [payload.lat, payload.lng]
     });
 
@@ -214,6 +219,7 @@ window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
         name: meta.name || "",
         phonenumber: meta.phonenumber || "",
         status: meta.status || "available",
+        care: meta.care || null,
         updatedAt: Date.now()
       });
     } else {

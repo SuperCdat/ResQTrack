@@ -1,5 +1,14 @@
 let currentAmbulanceData = [];
 
+const CARE_ICONS = {
+    oxygen: "🫧",
+    aed: "⚡",
+    ecg: "💓",
+    suction: "🩺",
+    ventilator: "🫁",
+    splint: "🦴"
+};
+
 function addAmblist(data) {
     const listElement = document.getElementById("amblist");
 
@@ -115,8 +124,17 @@ function renderAmbulanceCards(data, preserveSelection = false) {
         info.appendChild(name);
         info.appendChild(sub);
 
+        const chevron = document.createElement("span");
+        chevron.className = "card-chevron";
+        chevron.setAttribute("aria-hidden", "true");
+        chevron.innerHTML =
+            '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" ' +
+            'stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<polyline points="9 18 15 12 9 6"></polyline></svg>';
+
         card.appendChild(icon);
         card.appendChild(info);
+        card.appendChild(chevron);
 
         card.addEventListener("click", () => {
             selectAmbulance(ambulance, card);
@@ -124,6 +142,64 @@ function renderAmbulanceCards(data, preserveSelection = false) {
 
         listElement.appendChild(card);
     });
+}
+
+function renderCareInfo(amb) {
+    const box = document.getElementById("ambinfoboxcare");
+    if (!box) return;
+
+    box.replaceChildren();
+
+    const care = amb && amb.care;
+    const equipment = ((care && care.equipment) || []).filter((k) => CARE_EQUIPMENT.includes(k));
+    const meds = ((care && care.meds) || []).filter((m) => m && m.name);
+    const notes = (care && care.notes) || "";
+    const hasOxygen = !!(care && care.oxygen);
+
+    if (!hasOxygen && !equipment.length && !meds.length && !notes) {
+        box.hidden = true;
+        return;
+    }
+
+    // Everything below is driver-supplied: textContent only, never innerHTML.
+    const add = (tag, className, text) => {
+        const el = document.createElement(tag);
+        if (className) el.className = className;
+        el.textContent = text;
+        return el;
+    };
+
+    box.appendChild(add("div", "care-title", t("care_user_title")));
+
+    if (hasOxygen || equipment.length) {
+        const chips = document.createElement("div");
+        chips.className = "care-chips";
+        if (hasOxygen) {
+            chips.appendChild(add("span", "care-chip", (CARE_ICONS.oxygen || "") + " " + t("care_oxygen")));
+        }
+        equipment.forEach((k) => {
+            const icon = CARE_ICONS[k] || "";
+            chips.appendChild(add("span", "care-chip", icon + " " + t("equip_" + k)));
+        });
+        box.appendChild(chips);
+    }
+
+    if (meds.length) {
+        box.appendChild(add("div", "care-sub", t("care_meds_user")));
+        const ul = document.createElement("ul");
+        ul.className = "care-meds";
+        meds.forEach((m) => {
+            const li = document.createElement("li");
+            li.appendChild(add("b", "", m.name));
+            if (m.for) li.appendChild(document.createTextNode(" – " + m.for));
+            ul.appendChild(li);
+        });
+        box.appendChild(ul);
+    }
+
+    if (notes) box.appendChild(add("p", "care-text", notes));
+
+    box.hidden = false;
 }
 
 function renderInfoBox() {
@@ -162,6 +238,8 @@ function renderInfoBox() {
             etaElement.textContent = t("eta_calculating");
         }
     }
+
+    renderCareInfo(amb);
 
     if (callButton) {
         if (amb && amb.phonenumber) {

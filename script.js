@@ -33,10 +33,11 @@ function LocateManually() {
 }
 
 function ToggleDrawer() {
-  if (window.innerWidth > 768) return;
-
   const menu = document.getElementById("mainmenu");
-  if (menu) menu.classList.toggle("expanded");
+  if (!menu) return;
+
+  // Phones: bottom sheet expands. Desktop: side panel collapses.
+  menu.classList.toggle(window.innerWidth > 768 ? "collapsed" : "expanded");
 }
 
 let mapOptions = {
@@ -54,14 +55,10 @@ const ESRI_IMAGERY_TILES =
   "https://server.arcgisonline.com/ArcGIS/rest/services/" +
   "World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
-// Esri reference overlays (no API key needed): road names + places/boundaries
-const ESRI_ROADS_TILES =
-  "https://services.arcgisonline.com/arcgis/rest/services/" +
-  "Reference/World_Transportation/MapServer/tile/{z}/{y}/{x}";
-
-const ESRI_PLACES_TILES =
-  "https://services.arcgisonline.com/arcgis/rest/services/" +
-  "Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}";
+// Place + road labels from OpenStreetMap data (CARTO). OSM is community-maintained, so it
+// follows Vietnam's 2025 province mergers; Esri's reference layers still show the old map.
+// Light text with a dark halo reads well over imagery.
+const LABEL_TILES = "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png";
 
 const ESRI_ATTRIBUTION =
   "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, " +
@@ -84,52 +81,12 @@ map.createPane("labelsPane");
 map.getPane("labelsPane").style.zIndex = 350;
 map.getPane("labelsPane").style.pointerEvents = "none";
 
-// Esri draws roads/borders with semi-transparent pixels. This SVG filter boosts the
-// alpha channel so those lines render solid, without widening them much.
-(function () {
-  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("width", "0");
-  svg.setAttribute("height", "0");
-  svg.style.position = "absolute";
-  svg.innerHTML =
-    '<filter id="opaque-labels" color-interpolation-filters="sRGB">' +
-    '<feComponentTransfer>' +
-    '<feFuncA type="linear" slope="2.4" intercept="0"/>' +
-    '</feComponentTransfer></filter>';
-  document.body.appendChild(svg);
-  map.getPane("labelsPane").style.filter = "url(#opaque-labels)";
-})();
-
-// Esri bakes semi-transparent lines (roads, province/country borders) into its tiles.
-// An SVG alpha filter pushes every partly-transparent pixel to fully opaque.
-(function makeLinesOpaque() {
-  const ns = "http://www.w3.org/2000/svg";
-  const svg = document.createElementNS(ns, "svg");
-  svg.setAttribute("width", "0");
-  svg.setAttribute("height", "0");
-  svg.style.position = "absolute";
-  svg.innerHTML =
-    '<filter id="opaque-lines" color-interpolation-filters="sRGB">' +
-    '<feComponentTransfer><feFuncA type="linear" slope="6" intercept="0"/></feComponentTransfer>' +
-    "</filter>";
-  document.body.appendChild(svg);
-  map.getPane("labelsPane").style.filter = "url(#opaque-lines)";
-})();
-
-const esriLabelsLayer = L.layerGroup([
-  L.tileLayer(ESRI_ROADS_TILES, {
-    attribution: "",
-    maxZoom: 19,
-    maxNativeZoom: 18,
-    pane: "labelsPane"
-  }),
-  L.tileLayer(ESRI_PLACES_TILES, {
-    attribution: "",
-    maxZoom: 19,
-    maxNativeZoom: 18,
-    pane: "labelsPane"
-  })
-]);
+const satelliteLabelsLayer = L.tileLayer(LABEL_TILES, {
+  attribution: "© OpenStreetMap contributors © CARTO",
+  subdomains: "abcd",
+  maxZoom: 19,
+  pane: "labelsPane"
+});
 
 let activeBase = "osm";
 map.addLayer(osmLayer);
@@ -141,7 +98,7 @@ function ToggleSatellite() {
     map.removeLayer(osmLayer);
 
     esriImageryLayer.addTo(map);
-    esriLabelsLayer.addTo(map);
+    satelliteLabelsLayer.addTo(map);
 
     activeBase = "satellite";
     document.body.classList.add("satellite-active");
@@ -152,7 +109,7 @@ function ToggleSatellite() {
     }
   } else {
     map.removeLayer(esriImageryLayer);
-    map.removeLayer(esriLabelsLayer);
+    map.removeLayer(satelliteLabelsLayer);
 
     osmLayer.addTo(map);
 
@@ -951,6 +908,7 @@ window.onDriverAuthChanged = async function (user) {
   document.getElementById("driverAccount").textContent = user.email;
   document.getElementById("driverName").value = profile.name || user.email;
   document.getElementById("driverPhone").value = profile.phone || "";
+  fillCare(profile.care);
 
   CloseInfoBox();
   document.body.classList.add("driver-mode");
@@ -1003,6 +961,7 @@ function UpdateDriverStatus(shouldPan = false) {
     name,
     phonenumber,
     status,
+    care: collectCare(),
     pos: [...simulatedPos]
   };
 
@@ -1021,7 +980,8 @@ function UpdateDriverStatus(shouldPan = false) {
     window.pushDriverLivePos(province, car.id, car.pos[0], car.pos[1], {
       name: car.name,
       phonenumber: car.phonenumber,
-      status: car.status
+      status: car.status,
+      care: car.care
     });
   }
 
@@ -1078,6 +1038,126 @@ function PublishDriverNow() {
   }
 }
 
+/* ---- Driver care info: oxygen, equipment, medication ---- */
+
+const CARE_EQUIPMENT = ["aed", "ecg", "suction", "ventilator", "splint"];
+const CARE_MAX_MEDS = 20;
+
+function buildCareEquipment() {
+  const box = document.getElementById("careEquipment");
+  if (!box) return;
+
+  CARE_EQUIPMENT.forEach((key) => {
+    const label = document.createElement("label");
+    label.className = "check-row";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.dataset.equip = key;
+
+    const text = document.createElement("span");
+    text.dataset.i18n = "equip_" + key;
+
+    label.append(input, text);
+    box.appendChild(label);
+  });
+
+  applyStaticTranslations();
+}
+
+function AddMedRow(med) {
+  const list = document.getElementById("careMeds");
+  if (!list || list.children.length >= CARE_MAX_MEDS) return;
+
+  const row = document.createElement("div");
+  row.className = "med-row";
+
+  const name = document.createElement("input");
+  name.type = "text";
+  name.className = "med-name";
+  name.maxLength = 60;
+  name.dataset.i18nPlaceholder = "care_med_name";
+  name.value = (med && med.name) || "";
+
+  const cond = document.createElement("input");
+  cond.type = "text";
+  cond.className = "med-for";
+  cond.maxLength = 100;
+  cond.dataset.i18nPlaceholder = "care_med_for";
+  cond.value = (med && med.for) || "";
+
+  const remove = document.createElement("button");
+  remove.type = "button";
+  remove.className = "text-btn";
+  remove.dataset.i18n = "care_remove";
+  remove.addEventListener("click", () => {
+    row.remove();
+    onCareChanged();
+  });
+
+  row.append(name, cond, remove);
+  list.appendChild(row);
+  applyStaticTranslations();
+}
+
+// Returns null when the driver has declared nothing (so nothing is stored or published)
+function collectCare() {
+  const oxygenEl = document.getElementById("careOxygen");
+  if (!oxygenEl) return null;
+
+  const oxygen = oxygenEl.checked;
+  const equipment = CARE_EQUIPMENT.filter((key) => {
+    const el = document.querySelector('#careEquipment input[data-equip="' + key + '"]');
+    return el && el.checked;
+  });
+  const meds = Array.from(document.querySelectorAll("#careMeds .med-row"))
+    .map((row) => ({
+      name: row.querySelector(".med-name").value.trim(),
+      for: row.querySelector(".med-for").value.trim()
+    }))
+    .filter((m) => m.name);
+  const notes = document.getElementById("careNotes").value.trim();
+
+  if (!oxygen && !equipment.length && !meds.length && !notes) return null;
+  return { oxygen, equipment, meds, notes };
+}
+
+function fillCare(care) {
+  care = care || {};
+  const equipment = care.equipment || [];
+
+  document.getElementById("careOxygen").checked = !!care.oxygen;
+  document.querySelectorAll("#careEquipment input").forEach((el) => {
+    el.checked = equipment.includes(el.dataset.equip);
+  });
+  document.getElementById("careMeds").replaceChildren();
+  (care.meds || []).forEach((m) => AddMedRow(m));
+  document.getElementById("careNotes").value = care.notes || "";
+}
+
+function saveDriverProfile() {
+  if (!driverUser || !window.driverAuth) return;
+
+  window.driverAuth.saveProfile(driverUser.uid, {
+    name: document.getElementById("driverName").value.trim(),
+    phone: document.getElementById("driverPhone").value.trim(),
+    care: collectCare()
+  }).catch((e) => console.warn("Could not save driver profile:", e));
+}
+
+function onCareChanged() {
+  if (!driverUser) return;
+  saveDriverProfile();
+  if (driverSimInterval) return;
+  UpdateDriverStatus(false);
+}
+
+(function initCareForm() {
+  buildCareEquipment();
+  const box = document.getElementById("driverCare");
+  if (box) box.addEventListener("change", onCareChanged);
+})();
+
 (function bindDriverFormListeners() {
   const ids = ["driverName", "driverPhone", "driverProvince", "driverStatus"];
   ids.forEach((id) => {
@@ -1085,10 +1165,7 @@ function PublishDriverNow() {
     if (!el) return;
     el.addEventListener("change", () => {
       if ((id === "driverName" || id === "driverPhone") && driverUser && window.driverAuth) {
-        window.driverAuth.saveProfile(driverUser.uid, {
-          name: document.getElementById("driverName").value.trim(),
-          phone: document.getElementById("driverPhone").value.trim()
-        }).catch((e) => console.warn("Could not save driver profile:", e));
+        saveDriverProfile();
       }
       if (driverSimInterval) return;
       UpdateDriverStatus(id === "driverProvince");
