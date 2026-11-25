@@ -1,8 +1,13 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-app.js";
 import { getFirestore, doc, getDoc } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-firestore.js";
 import {
-  getDatabase, ref, update, onValue, onChildAdded, onChildChanged, onChildRemoved, off, goOnline
+  getDatabase, ref, update, set, get, remove, onDisconnect,
+  onValue, onChildAdded, onChildChanged, onChildRemoved, off, goOnline
 } from "https://www.gstatic.com/firebasejs/13.4.0/firebase-database.js";
+import {
+  getAuth, onAuthStateChanged, createUserWithEmailAndPassword,
+  signInWithEmailAndPassword, signOut
+} from "https://www.gstatic.com/firebasejs/13.4.0/firebase-auth.js";
 
 const app = initializeApp({
   apiKey: "AIzaSyAYrGkjxkR8nOZeoLy-MeHgjeB6_mKOmRE",
@@ -14,6 +19,7 @@ const app = initializeApp({
 });
 
 const db = getFirestore(app);
+const auth = getAuth(app);
 const rtdb = getDatabase(app, "https://resqtrack-10d06-default-rtdb.asia-southeast1.firebasedatabase.app");
 
 /* ---- Static catalog: Firestore (1 doc), re-read only when catalogVersion changes ---- */
@@ -159,9 +165,48 @@ document.addEventListener("visibilitychange", () => {
   }
 });
 
+/* ---- Driver accounts: only drivers sign in; normal users never need an account ---- */
+
+window.driverAuth = {
+  signIn: (email, password) => signInWithEmailAndPassword(auth, email, password),
+
+  async signUp(email, password, profile) {
+    const cred = await createUserWithEmailAndPassword(auth, email, password);
+    await set(ref(rtdb, `drivers/${cred.user.uid}`), profile);
+    return cred;
+  },
+
+  signOut: () => signOut(auth),
+
+  async loadProfile(uid) {
+    return (await get(ref(rtdb, `drivers/${uid}`))).val();
+  },
+
+  saveProfile: (uid, profile) => set(ref(rtdb, `drivers/${uid}`), profile)
+};
+
+onAuthStateChanged(auth, (user) => {
+  if (typeof window.onDriverAuthChanged === "function") window.onDriverAuthChanged(user);
+});
+
+window.removeDriverLive = async (province, carId) => {
+  try {
+    await remove(ref(rtdb, `live/${province}/${carId}`));
+  } catch (err) {
+    console.error("Lỗi xoá vị trí khỏi RTDB:", err);
+  }
+};
+
+// A driver whose tab closes or loses connection disappears from the map by itself
+let disconnectPath = null;
+
 window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
   try {
     const targetRef = ref(rtdb, `live/${province}/${carId}`);
+    if (disconnectPath !== targetRef.toString()) {
+      await onDisconnect(targetRef).remove();
+      disconnectPath = targetRef.toString();
+    }
     if (meta && typeof meta === "object") {
       await update(targetRef, {
         lat,

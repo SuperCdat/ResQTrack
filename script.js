@@ -401,7 +401,7 @@ function ToggleTheme() {
   if (btn) btn.innerHTML = isDark ? "☀️" : "🌙";
 
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute("content", isDark ? "#0f172a" : "#f8fafc");
+  if (meta) meta.setAttribute("content", isDark ? "#202124" : "#ffffff");
 
   try {
     localStorage.setItem(THEME_KEY, isDark ? "dark" : "light");
@@ -415,7 +415,7 @@ function ToggleTheme() {
       const btn = document.getElementById("themetoggle");
       if (btn) btn.innerHTML = "☀️";
       const meta = document.querySelector('meta[name="theme-color"]');
-      if (meta) meta.setAttribute("content", "#0f172a");
+      if (meta) meta.setAttribute("content", "#202124");
     }
   } catch (e) {}
 })();
@@ -614,7 +614,6 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
 }
 
 function refreshMapTexts() {
-  if (typeof refreshHospitalTexts === "function") refreshHospitalTexts();
   currentMarkers.forEach(marker => {
     if (!marker.ambName) return;
 
@@ -633,217 +632,6 @@ function refreshMapTexts() {
         : t("popup_manual")
     );
   }
-}
-
-
-/* ================= Hospitals (OpenStreetMap / Overpass) ================= */
-
-map.createPane("hospitalPane");
-map.getPane("hospitalPane").style.zIndex = 590; // below ambulances (600)
-
-const hospitalLayer = L.layerGroup().addTo(map);
-const hospitalMarkers = new Map();
-const HOSP_MIN_ZOOM = 11;
-const OVERPASS_URLS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter"
-];
-const HOSP_DEBOUNCE_MS = 1200;
-const HOSP_BACKOFF_MS = 25000;
-
-let hospFetchedBounds = null;
-let hospTimer = null;
-let hospBackoffUntil = 0;
-let hospInFlight = false;
-
-function hospitalScore(el) {
-  const tags = el.tags || {};
-  const beds = parseInt(tags.beds, 10);
-  if (beds > 0) return beds;
-
-  let score = 40;
-  if (el.bounds) {
-    const b = el.bounds;
-    const lat = (b.minlat + b.maxlat) / 2;
-    const h = (b.maxlat - b.minlat) * 111320;
-    const w = (b.maxlon - b.minlon) * 111320 * Math.cos(lat * Math.PI / 180);
-    const levels = parseFloat(tags["building:levels"]) || 2;
-    score = (h * w * levels) / 90;
-  }
-
-  const name = ((tags.name || "") + " " + (tags["name:en"] || "")).toLowerCase();
-  if (/đa khoa|general|trung ương|central|university|đại học|national|quốc gia/.test(name)) score *= 1.6;
-  if (/phòng khám|clinic|trạm y tế|medical center|chuyên khoa/.test(name)) score *= 0.5;
-
-  return Math.max(5, score);
-}
-
-function hospitalT(score) {
-  return Math.min(1, Math.max(0, Math.log(score / 10) / Math.log(800 / 10)));
-}
-
-const HOSP_STOPS = [
-  [0.0, [252, 205, 205]],
-  [0.5, [239, 68, 68]],
-  [1.0, [127, 15, 15]]
-];
-
-function hospitalColor(k0) {
-  for (let i = 1; i < HOSP_STOPS.length; i++) {
-    if (k0 <= HOSP_STOPS[i][0]) {
-      const [t1, c1] = HOSP_STOPS[i - 1];
-      const [t2, c2] = HOSP_STOPS[i];
-      const k = (k0 - t1) / (t2 - t1);
-      return "rgb(" + c1.map((v, j) => Math.round(v + (c2[j] - v) * k)).join(",") + ")";
-    }
-  }
-  return "rgb(127,15,15)";
-}
-
-function hospitalIcon(k) {
-  const size = Math.round(22 + k * 16);
-  const color = hospitalColor(k);
-  const html =
-    '<svg width="' + size + '" height="' + size + '" viewBox="0 0 24 24" ' +
-    'style="filter: drop-shadow(0 1px 3px rgba(0,0,0,.6));">' +
-    '<circle cx="12" cy="12" r="10.5" fill="' + color + '" stroke="#fff" stroke-width="2"/>' +
-    '<path d="M10 6h4v4h4v4h-4v4h-4v-4H6v-4h4z" fill="#fff"/></svg>';
-
-  return L.divIcon({
-    className: "hospital-icon",
-    html: html,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size / 2]
-  });
-}
-
-function hospitalDisplayName(tags) {
-  return (currentLang === "en" && tags["name:en"]) || tags.name || t("hosp_default_name");
-}
-
-function hospitalPopup(m) {
-  const tg = m.hosp.tags;
-  const lvl = m.hosp.k < 0.3 ? "size_1" : m.hosp.k < 0.55 ? "size_2" : m.hosp.k < 0.8 ? "size_3" : "size_4";
-  let html = "<b>" + hospitalDisplayName(tg).replace(/</g, "&lt;") + "</b><br>" +
-    t("hosp_size", { label: t(lvl) });
-  const beds = parseInt(tg.beds, 10);
-  if (beds > 0) html += "<br>" + t("hosp_beds", { n: beds });
-  return html;
-}
-
-function addHospital(el) {
-  const key = el.type + el.id;
-  if (hospitalMarkers.has(key)) return;
-
-  const pos = el.type === "node"
-    ? [el.lat, el.lon]
-    : el.center ? [el.center.lat, el.center.lon] : null;
-  if (!pos) return;
-
-  const k = hospitalT(hospitalScore(el));
-  const tags = el.tags || {};
-
-  const m = L.marker(pos, {
-    icon: hospitalIcon(k),
-    pane: "hospitalPane",
-    zIndexOffset: Math.round(k * 1000)
-  });
-  m.hosp = { tags: tags, k: k };
-
-  m.bindPopup(() => hospitalPopup(m));
-  m.bindTooltip(() => hospitalDisplayName(tags), {
-    permanent: true,
-    direction: "right",
-    offset: [12, 0],
-    className: "hosp-label"
-  });
-
-  m.addTo(hospitalLayer);
-  hospitalMarkers.set(key, m);
-}
-
-async function loadHospitals() {
-  if (hospInFlight) return;
-  if (Date.now() < hospBackoffUntil) return;
-  if (map.getZoom() < HOSP_MIN_ZOOM) return;
-
-  const view = map.getBounds();
-  if (hospFetchedBounds && hospFetchedBounds.contains(view)) return;
-
-  const area = view.pad(0.35);
-  const query =
-    '[out:json][timeout:25];nwr["amenity"="hospital"](' +
-    [area.getSouth(), area.getWest(), area.getNorth(), area.getEast()].join(",") +
-    ");out center tags bb;";
-
-  hospInFlight = true;
-  let allFailed = true;
-
-  try {
-    for (const url of OVERPASS_URLS) {
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          body: "data=" + encodeURIComponent(query),
-          headers: { "Content-Type": "application/x-www-form-urlencoded" }
-        });
-
-        if (res.status === 429) {
-          hospBackoffUntil = Date.now() + HOSP_BACKOFF_MS;
-          continue;
-        }
-
-        if (!res.ok) continue;
-
-        const json = await res.json();
-        (json.elements || []).forEach(addHospital);
-        hospFetchedBounds = area;
-        hospBackoffUntil = 0;
-        allFailed = false;
-        return;
-      } catch (e) {
-        console.warn("Overpass tạm thời không phản hồi:", url);
-      }
-    }
-
-    if (allFailed && Date.now() >= hospBackoffUntil) {
-      hospBackoffUntil = Date.now() + HOSP_BACKOFF_MS;
-    }
-  } finally {
-    hospInFlight = false;
-  }
-}
-
-function scheduleHospitalLoad() {
-  clearTimeout(hospTimer);
-  if (Date.now() < hospBackoffUntil) return;
-  hospTimer = setTimeout(loadHospitals, HOSP_DEBOUNCE_MS);
-}
-
-function updateZoomClass() {
-  map.getContainer().classList.toggle("zoom-labels", map.getZoom() >= 15);
-}
-
-map.on("moveend", () => { updateZoomClass(); scheduleHospitalLoad(); });
-updateZoomClass();
-scheduleHospitalLoad();
-
-(function createHospitalLegend() {
-  const el = document.createElement("div");
-  el.id = "hosp-legend";
-  el.innerHTML =
-    '<div class="legend-title" data-i18n="legend_title"></div>' +
-    '<div class="legend-bar"></div>' +
-    '<div class="legend-row"><span data-i18n="legend_small"></span><span data-i18n="legend_large"></span></div>';
-  document.body.appendChild(el);
-  if (typeof applyStaticTranslations === "function") applyStaticTranslations();
-})();
-
-function refreshHospitalTexts() {
-  hospitalMarkers.forEach(m => {
-    m.getTooltip().update();
-    if (m.isPopupOpen()) m.setPopupContent(hospitalPopup(m));
-  });
 }
 
 
@@ -893,28 +681,21 @@ let simulatedPos = [10.034185, 105.72255];
 let driverSimMarker = null;
 let realPosBeforeSim = null;
 
-const DRIVER_ID_KEY = "resqtrack_driver_id";
-const DRIVER_SYNC_KEY = "resqtrack_driver_update";
+let driverUser = null;              // Firebase Auth user while a driver is signed in
+let driverPublishedProvince = null; // province whose live/ node currently holds this driver
 
 const PROVINCE_CENTERS = {
   "Cần Thơ": [10.034185, 105.72255],
-  "TP. Hồ Chí Minh": [10.776889, 106.700806],
+  "Hồ Chí Minh": [10.776889, 106.700806],
   "An Giang": [10.386, 105.435],
   "Vĩnh Long": [10.2537, 105.9722],
-  "Đồng Tháp": [10.4938, 105.6882]
+  "Đồng Tháp": [10.4938, 105.6882],
+  "Hà Nội": [21.0285, 105.8542],
+  "Đà Nẵng": [16.0678, 108.2208]
 };
 
 function getDriverId() {
-  try {
-    let id = localStorage.getItem(DRIVER_ID_KEY);
-    if (!id) {
-      id = "drv_" + Math.random().toString(36).slice(2, 10);
-      localStorage.setItem(DRIVER_ID_KEY, id);
-    }
-    return id;
-  } catch (e) {
-    return "drv_session_" + Date.now();
-  }
+  return driverUser ? driverUser.uid : null;
 }
 
 function setDriverMsg(text, color = "var(--subtext)") {
@@ -1040,34 +821,142 @@ function startDriverGpsWatch() {
   );
 }
 
-function SwitchRole(role) {
-  currentRole = role;
-  const btnUser = document.getElementById("btnRoleUser");
-  const btnDriver = document.getElementById("btnRoleDriver");
-  const userMenu = document.getElementById("mainmenu");
-  const driverMenu = document.getElementById("drivermenu");
-  const userControls = document.getElementById("userControls");
+/* ---- Driver account (Firebase Auth lives in firebase-data.js) ---- */
 
-  if (btnUser) btnUser.classList.toggle("active", role === "user");
-  if (btnDriver) btnDriver.classList.toggle("active", role === "driver");
+let authMode = "signin";
 
-  if (role === "driver") {
-    if (userMenu) userMenu.style.display = "none";
-    if (driverMenu) driverMenu.classList.remove("hidden");
-    if (userControls) userControls.style.display = "none";
-    startDriverGpsWatch();
-    UpdateDriverStatus(false);
-  } else {
-    clearDriverSimMarker();
-    if (driverSimInterval) {
-      stopDriverSim();
-    }
-    if (userMenu) userMenu.style.display = "";
-    if (driverMenu) driverMenu.classList.add("hidden");
-    if (userControls) userControls.style.display = "flex";
-    stopDriverGpsWatch();
+function setAuthError(text) {
+  const el = document.getElementById("authError");
+  if (el) el.textContent = text || "";
+}
+
+function setAuthMode(mode) {
+  authMode = mode;
+  const signup = mode === "signup";
+
+  document.getElementById("authSignupFields").hidden = !signup;
+  document.getElementById("authName").required = signup;
+  document.getElementById("authPhone").required = signup;
+  document.getElementById("authPassword").autocomplete = signup ? "new-password" : "current-password";
+  document.getElementById("authTitle").dataset.i18n = signup ? "auth_title_signup" : "auth_title_signin";
+  document.getElementById("authSubmit").dataset.i18n = signup ? "auth_submit_signup" : "auth_submit_signin";
+  document.getElementById("authSwitch").dataset.i18n = signup ? "auth_switch_to_signin" : "auth_switch_to_signup";
+
+  setAuthError("");
+  applyStaticTranslations();
+}
+
+function ToggleAuthMode() {
+  setAuthMode(authMode === "signin" ? "signup" : "signin");
+}
+
+function OpenAuth() {
+  setAuthMode("signin");
+  document.getElementById("authBackdrop").hidden = false;
+  document.getElementById("authEmail").focus();
+}
+
+function CloseAuth() {
+  document.getElementById("authBackdrop").hidden = true;
+  document.getElementById("authForm").reset();
+  setAuthError("");
+}
+
+function authErrorText(err) {
+  switch (err && err.code) {
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return t("err_invalid_credential");
+    case "auth/email-already-in-use":
+      return t("err_email_in_use");
+    case "auth/weak-password":
+      return t("err_weak_password");
+    case "auth/invalid-email":
+      return t("err_invalid_email");
+    case "auth/network-request-failed":
+      return t("err_network");
+    default:
+      return t("err_generic");
   }
 }
+
+async function SubmitAuth(event) {
+  event.preventDefault();
+
+  if (!window.driverAuth) {
+    setAuthError(t("auth_unavailable"));
+    return;
+  }
+
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const submit = document.getElementById("authSubmit");
+
+  submit.disabled = true;
+  setAuthError("");
+
+  try {
+    if (authMode === "signup") {
+      await window.driverAuth.signUp(email, password, {
+        name: document.getElementById("authName").value.trim(),
+        phone: document.getElementById("authPhone").value.trim()
+      });
+    } else {
+      await window.driverAuth.signIn(email, password);
+    }
+    CloseAuth();
+  } catch (err) {
+    console.error("Driver auth error:", err);
+    setAuthError(authErrorText(err));
+  } finally {
+    submit.disabled = false;
+  }
+}
+
+async function DriverSignOut() {
+  // Stop anything that could re-publish, then take the car off the map before the token goes away.
+  stopDriverGpsWatch();
+  stopDriverSim();
+
+  if (driverUser && driverPublishedProvince && window.removeDriverLive) {
+    await window.removeDriverLive(driverPublishedProvince, driverUser.uid);
+  }
+  driverPublishedProvince = null;
+
+  if (window.driverAuth) await window.driverAuth.signOut();
+}
+
+// Called by firebase-data.js whenever the sign-in state changes (including on page load)
+window.onDriverAuthChanged = async function (user) {
+  if (!user) {
+    driverUser = null;
+    driverPublishedProvince = null;
+    clearDriverSimMarker();
+    stopDriverSim();
+    stopDriverGpsWatch();
+    document.body.classList.remove("driver-mode");
+    return;
+  }
+
+  driverUser = user;
+
+  let profile = {};
+  try {
+    profile = (await window.driverAuth.loadProfile(user.uid)) || {};
+  } catch (e) {
+    console.warn("Could not load driver profile:", e);
+  }
+
+  document.getElementById("driverAccount").textContent = user.email;
+  document.getElementById("driverName").value = profile.name || user.email;
+  document.getElementById("driverPhone").value = profile.phone || "";
+
+  CloseInfoBox();
+  document.body.classList.add("driver-mode");
+  startDriverGpsWatch();
+  UpdateDriverStatus(false);
+};
 
 function syncDriverCarToState(province, car) {
   if (typeof globalTransportData === "undefined" || !globalTransportData) return;
@@ -1090,14 +979,16 @@ function syncDriverCarToState(province, car) {
 }
 
 function UpdateDriverStatus(shouldPan = false) {
+  if (!driverUser) return;
+
   const statusEl = document.getElementById("driverStatus");
   const nameEl = document.getElementById("driverName");
   const phoneEl = document.getElementById("driverPhone");
   const provinceEl = document.getElementById("driverProvince");
 
   const status = statusEl ? statusEl.value : "available";
-  const name = nameEl ? nameEl.value : "Xe 05 - Cần Thơ";
-  const phonenumber = phoneEl ? phoneEl.value : "0988776655";
+  const name = (nameEl && nameEl.value) || driverUser.email;
+  const phonenumber = phoneEl ? phoneEl.value : "";
   const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
 
   if (shouldPan && !driverSimInterval && PROVINCE_CENTERS[province]) {
@@ -1115,16 +1006,18 @@ function UpdateDriverStatus(shouldPan = false) {
     pos: [...simulatedPos]
   };
 
-  try {
-    localStorage.setItem(
-      DRIVER_SYNC_KEY,
-      JSON.stringify({ province, data: car, time: Date.now() })
-    );
-  } catch (e) {}
+  // Moved to another province, or went offline: take the old live node down
+  if (driverPublishedProvince && (driverPublishedProvince !== province || status === "offline")) {
+    if (typeof window.removeDriverLive === "function") {
+      window.removeDriverLive(driverPublishedProvince, car.id);
+    }
+    driverPublishedProvince = null;
+  }
 
   syncDriverCarToState(province, car);
 
-  if (typeof window.pushDriverLivePos === "function") {
+  if (status !== "offline" && typeof window.pushDriverLivePos === "function") {
+    driverPublishedProvince = province;
     window.pushDriverLivePos(province, car.id, car.pos[0], car.pos[1], {
       name: car.name,
       phonenumber: car.phonenumber,
@@ -1190,8 +1083,13 @@ function PublishDriverNow() {
   ids.forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
-    const evt = el.tagName === "SELECT" ? "change" : "input";
-    el.addEventListener(evt, () => {
+    el.addEventListener("change", () => {
+      if ((id === "driverName" || id === "driverPhone") && driverUser && window.driverAuth) {
+        window.driverAuth.saveProfile(driverUser.uid, {
+          name: document.getElementById("driverName").value.trim(),
+          phone: document.getElementById("driverPhone").value.trim()
+        }).catch((e) => console.warn("Could not save driver profile:", e));
+      }
       if (driverSimInterval) return;
       UpdateDriverStatus(id === "driverProvince");
     });
@@ -1282,16 +1180,3 @@ function SimulateDrive() {
     }, 1500);
   });
 }
-
-window.addEventListener("storage", (e) => {
-  if (e.key === DRIVER_SYNC_KEY && e.newValue) {
-    try {
-      const payload = JSON.parse(e.newValue);
-      if (payload && payload.data) {
-        syncDriverCarToState(payload.province || "Cần Thơ", payload.data);
-      }
-    } catch (err) {
-      console.error("Lỗi đồng bộ dữ liệu tài xế:", err);
-    }
-  }
-});

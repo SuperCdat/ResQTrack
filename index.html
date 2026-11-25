@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <meta name="theme-color" content="#f8fafc">
+  <meta name="theme-color" content="#ffffff">
   <title>ResQTrack - Emergency Dispatch</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
   <link rel="stylesheet" href="style.css">
@@ -12,22 +15,23 @@
 <body>
   <div id="map"></div>
 
-  <!-- Nút chuyển vai trò -->
-  <div class="role-switch-container">
-    <button id="btnRoleUser" type="button" class="role-btn active" onclick="SwitchRole('user')">👤 Người dùng</button>
-    <button id="btnRoleDriver" type="button" class="role-btn" onclick="SwitchRole('driver')">🚑 Tài xế</button>
-  </div>
+  <!-- Driver sign-in entry (normal users never need it) -->
+  <button id="accountbtn" type="button" class="account-chip" onclick="OpenAuth()">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/></svg>
+    <span data-i18n="account_signin">Đăng nhập tài xế</span>
+  </button>
 
-  <!-- Menu bên trái: Người dùng -->
+  <!-- User panel -->
   <aside id="mainmenu">
     <div class="menu-header" id="menuheader" onclick="ToggleDrawer()" role="button" tabindex="0" aria-label="Toggle ambulance list">
-      <h2>ResQTrack</h2>
+      <div class="brand">
+        <img src="output-onlinepngtools.png" alt="" width="28" height="28">
+        <h2>ResQTrack</h2>
+      </div>
       <div class="menu-header-right">
         <span class="live-badge" data-i18n="live">Trực tiếp</span>
         <span class="drawer-chevron" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="18 15 12 9 6 15"></polyline>
-          </svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
         </span>
       </div>
     </div>
@@ -37,46 +41,62 @@
     </div>
   </aside>
 
-  <!-- Bảng điều khiển bên trái: Tài xế -->
-  <aside id="drivermenu" class="driver-panel hidden">
-    <h2>Bảng điều khiển Tài xế</h2>
-    <div class="driver-form">
-      <label for="driverName">Tên xe cứu thương:</label>
-      <input type="text" id="driverName" value="Xe 05 - Cần Thơ" onchange="UpdateDriverStatus()" />
+  <!-- Driver panel (shown only while signed in) -->
+  <aside id="drivermenu">
+    <div class="panel-header">
+      <div class="brand">
+        <img src="output-onlinepngtools.png" alt="" width="28" height="28">
+        <h2 data-i18n="driver_title">Bảng điều khiển tài xế</h2>
+      </div>
+      <button type="button" class="text-btn" onclick="DriverSignOut()" data-i18n="signout">Đăng xuất</button>
+    </div>
+    <p id="driverAccount" class="driver-account"></p>
 
-      <label for="driverPhone">Số điện thoại liên hệ:</label>
-      <input type="text" id="driverPhone" value="0988776655" onchange="UpdateDriverStatus()" />
-
-      <label for="driverProvince">Tỉnh / Thành phố hoạt động:</label>
-      <select id="driverProvince" onchange="UpdateDriverStatus(true)">
+    <div class="field">
+      <input type="text" id="driverName" placeholder=" " autocomplete="off">
+      <label for="driverName" data-i18n="label_name">Tên xe cứu thương</label>
+    </div>
+    <div class="field">
+      <input type="tel" id="driverPhone" placeholder=" " autocomplete="tel">
+      <label for="driverPhone" data-i18n="label_phone">Số điện thoại liên hệ</label>
+    </div>
+    <div class="field">
+      <select id="driverProvince">
         <option value="Cần Thơ" selected>Cần Thơ</option>
-        <option value="TP. Hồ Chí Minh">TP. Hồ Chí Minh</option>
+        <option value="Hồ Chí Minh">Hồ Chí Minh</option>
         <option value="An Giang">An Giang</option>
         <option value="Vĩnh Long">Vĩnh Long</option>
         <option value="Đồng Tháp">Đồng Tháp</option>
+        <option value="Hà Nội">Hà Nội</option>
+        <option value="Đà Nẵng">Đà Nẵng</option>
       </select>
-
-      <label for="driverStatus">Trạng thái hoạt động:</label>
-      <select id="driverStatus" onchange="UpdateDriverStatus()">
-        <option value="available">🟢 Sẵn sàng phục vụ</option>
-        <option value="busy">🔴 Đang chở bệnh nhân (Bận)</option>
-        <option value="offline">⚪ Tạm ngưng hoạt động</option>
-      </select>
-
-      <div class="driver-actions">
-        <button id="btnUpdateDriver" type="button" onclick="PublishDriverNow()" class="action-btn">📡 Cập nhật lên hệ thống</button>
-        <button type="button" onclick="SimulateDrive()" class="action-btn secondary">🚗 Mô phỏng xe chạy</button>
-      </div>
-      <p id="driverStatusMsg" class="driver-status-msg"></p>
+      <label for="driverProvince" data-i18n="label_province">Tỉnh / Thành phố hoạt động</label>
     </div>
+    <div class="field">
+      <select id="driverStatus">
+        <option value="available" data-i18n="status_available">🟢 Sẵn sàng phục vụ</option>
+        <option value="busy" data-i18n="status_busy">🔴 Đang chở bệnh nhân (Bận)</option>
+        <option value="offline" data-i18n="status_offline">⚪ Tạm ngưng hoạt động</option>
+      </select>
+      <label for="driverStatus" data-i18n="label_status">Trạng thái hoạt động</label>
+    </div>
+
+    <div class="driver-actions">
+      <button type="button" onclick="PublishDriverNow()" class="action-btn" data-i18n="btn_publish">📡 Cập nhật lên hệ thống</button>
+      <button type="button" onclick="SimulateDrive()" class="action-btn secondary" data-i18n="btn_simulate">🚗 Mô phỏng xe chạy</button>
+    </div>
+    <p id="driverStatusMsg" class="driver-status-msg"></p>
   </aside>
 
   <div class="map-hud-controls">
-    <button id="zoomin" type="button" onclick="ZoomIn()" data-i18n-title="tt_zoom_in" title="Zoom In">+</button>
+    <button id="langtoggle" type="button" onclick="ToggleLanguage()" title="Switch language">EN</button>
     <button id="themetoggle" type="button" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">🌙</button>
     <button id="satellitetoggle" type="button" onclick="ToggleSatellite()" data-i18n-title="tt_satellite" title="Satellite View">🛰️</button>
-    <button id="langtoggle" type="button" onclick="ToggleLanguage()" title="Switch language">EN</button>
-    <button id="zoomout" type="button" onclick="ZoomOut()" data-i18n-title="tt_zoom_out" title="Zoom Out">-</button>
+  </div>
+
+  <div class="zoom-controls">
+    <button id="zoomin" type="button" onclick="ZoomIn()" data-i18n-title="tt_zoom_in" title="Zoom In">+</button>
+    <button id="zoomout" type="button" onclick="ZoomOut()" data-i18n-title="tt_zoom_out" title="Zoom Out">−</button>
   </div>
 
   <div class="action-hud-controls" id="userControls">
@@ -91,11 +111,48 @@
   <div id="ambinfobox" class="info-card hidden">
     <div class="info-card-header">
       <h3 id="ambinfoboxname"></h3>
-      <button class="close-btn" type="button" onclick="CloseInfoBox()">✕</button>
+      <button class="close-btn" type="button" onclick="CloseInfoBox()" aria-label="Close">✕</button>
     </div>
     <p id="ambinfoboxphonenumber"></p>
     <p id="ambinfoboxeta" class="info-eta"></p>
     <a id="call-btn" href="#" class="call-action-btn" style="display: none;" data-i18n="call_now">📞 Gọi ngay</a>
+  </div>
+
+  <!-- Driver sign-in / sign-up dialog -->
+  <div id="authBackdrop" class="auth-backdrop" hidden onclick="if (event.target === this) CloseAuth()">
+    <form id="authForm" class="auth-dialog" onsubmit="SubmitAuth(event)" role="dialog" aria-modal="true" aria-labelledby="authTitle">
+      <img src="output-onlinepngtools.png" alt="" width="40" height="40">
+      <h2 id="authTitle" data-i18n="auth_title_signin">Đăng nhập tài xế</h2>
+
+      <div class="field">
+        <input type="email" id="authEmail" placeholder=" " autocomplete="email" required>
+        <label for="authEmail" data-i18n="auth_email">Email</label>
+      </div>
+      <div class="field">
+        <input type="password" id="authPassword" placeholder=" " autocomplete="current-password" minlength="6" required>
+        <label for="authPassword" data-i18n="auth_password">Mật khẩu</label>
+      </div>
+      <div id="authSignupFields" hidden>
+        <div class="field">
+          <input type="text" id="authName" placeholder=" " autocomplete="off">
+          <label for="authName" data-i18n="auth_amb_name">Tên xe cứu thương</label>
+        </div>
+        <div class="field">
+          <input type="tel" id="authPhone" placeholder=" " autocomplete="tel">
+          <label for="authPhone" data-i18n="auth_phone">Số điện thoại liên hệ</label>
+        </div>
+      </div>
+
+      <p id="authError" class="auth-error" role="alert"></p>
+
+      <div class="auth-actions">
+        <button type="button" id="authSwitch" class="text-btn" onclick="ToggleAuthMode()" data-i18n="auth_switch_to_signup">Tạo tài khoản</button>
+        <div class="auth-actions-right">
+          <button type="button" class="text-btn" onclick="CloseAuth()" data-i18n="auth_cancel">Hủy</button>
+          <button type="submit" id="authSubmit" class="action-btn" data-i18n="auth_submit_signin">Đăng nhập</button>
+        </div>
+      </div>
+    </form>
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>

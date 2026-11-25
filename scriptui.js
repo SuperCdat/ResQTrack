@@ -166,7 +166,7 @@ function renderInfoBox() {
     if (callButton) {
         if (amb && amb.phonenumber) {
             callButton.href = "tel:" + amb.phonenumber;
-            callButton.style.display = "inline-block";
+            callButton.style.display = "flex";
         } else {
             callButton.style.display = "none";
             callButton.removeAttribute("href");
@@ -195,10 +195,8 @@ function selectAmbulance(ambulance, cardElement) {
 
     const infoBox = document.getElementById("ambinfobox");
 
-    if (infoBox) {
-        infoBox.classList.remove("hidden");
-        infoBox.style.display = "block";
-    }
+    if (infoBox) infoBox.classList.remove("hidden");
+    document.body.classList.add("has-info");
 
     if (window.innerWidth <= 768) {
         const menu = document.getElementById("mainmenu");
@@ -220,7 +218,8 @@ function CloseInfoBox() {
         return;
     }
 
-    infoBox.style.display = "none";
+    infoBox.classList.add("hidden");
+    document.body.classList.remove("has-info");
 
     selectedAmbulance = null;
     lastRouteMetrics = null;
