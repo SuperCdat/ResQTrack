@@ -507,3 +507,19 @@ body.dark-mode .call-action-btn { color: #202124; }
   color: #bae6fd !important;
   text-decoration: underline;
 }
+
+
+
+
+* {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+input,
+textarea,
+select {
+  -webkit-user-select: text;
+  user-select: text;
+}
