@@ -117,7 +117,6 @@ function renderAmbulanceCards(data, preserveSelection = false) {
                     min: lastRouteMetrics.timeMins,
                     km: lastRouteMetrics.distanceKm
                 });
-                sub.style.color = "var(--success)";
             }
         }
 
@@ -294,6 +293,11 @@ function CloseInfoBox() {
     if (!infoBox) {
         console.warn("Không tìm thấy Info Box.");
         return;
+    }
+
+    if (routingControl) {
+        map.removeControl(routingControl);
+        routingControl = null;
     }
 
     infoBox.classList.add("hidden");

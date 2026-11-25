@@ -81,6 +81,41 @@ body.satellite-active.dark-mode .leaflet-tile { filter: none !important; }
 .leaflet-popup-close-button { color: var(--subtext) !important; }
 .leaflet-routing-container { display: none !important; }
 
+/* The signed-in driver's own ambulance gets a highlighted label */
+.leaflet-tooltip.own-amb-tooltip {
+  color: var(--accent) !important;
+  border-color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  font-weight: 700;
+}
+
+/* ---------- Indeterminate top progress bar (app load / geolocation) ---------- */
+.load-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  z-index: 4000;
+  overflow: hidden;
+  background: var(--accent-soft);
+  pointer-events: none;
+}
+.load-bar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  background: var(--accent);
+  animation: load-bar-slide 1.1s ease-in-out infinite;
+}
+@keyframes load-bar-slide {
+  from { left: -40%; }
+  to { left: 100%; }
+}
+
 /* ---------- Side panels ---------- */
 #mainmenu, #drivermenu {
   position: absolute;

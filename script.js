@@ -22,6 +22,7 @@ function LocateManually() {
 
   locationRequestId++;
   findingLocation = false;
+  setLocatingUI(false);
 
   if (locatingmanually) {
     map.doubleClickZoom.disable();
@@ -58,7 +59,7 @@ const ESRI_IMAGERY_TILES =
 // Place + road labels from OpenStreetMap data (CARTO). OSM is community-maintained, so it
 // follows Vietnam's 2025 province mergers; Esri's reference layers still show the old map.
 // Light text with a dark halo reads well over imagery.
-const LABEL_TILES = "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png";
+const LABEL_TILES = "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png?key=cb1_5fwb_1_daad9535186f86343eb1a022";
 
 const ESRI_ATTRIBUTION =
   "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, " +
@@ -134,6 +135,9 @@ let currentProvince = null;
 
 // Called by firebase-data.js with the full catalog ({ province: [ambulances] })
 function applyCatalog(dataraw) {
+  const bar = document.getElementById("loadbar");
+  if (bar) bar.hidden = true;
+
   globalTransportData = dataraw || {};
 
   let province = dataraw && dataraw[currentProvince]
@@ -183,9 +187,13 @@ function loadProvinceData(provinceName) {
     marker.ambName = data[i].name;
     marker.ambId = data[i].id;
 
+    // Live cars carry the driver's Firebase uid as id; only that driver's device matches.
+    const isOwnCar = !!data[i].id && data[i].id === getDriverId();
+
     marker.bindTooltip(`${localizeProvince(provinceName)} - ${localizeName(data[i].name)}`, {
       direction: "bottom",
-      permanent: true
+      permanent: true,
+      className: isOwnCar ? "own-amb-tooltip" : ""
     });
 
     marker.addTo(map);
@@ -280,11 +288,30 @@ function setUserLocation(latlng, accuracy = null) {
   map.addLayer(loc);
 }
 
+// Disables the locate button and shows the top progress bar while a fix is pending
+function setLocatingUI(isLocating) {
+  const btn = document.getElementById("locatebutton");
+
+  if (btn) {
+    btn.disabled = isLocating;
+
+    const label = btn.querySelector(".btn-label");
+    if (label) {
+      label.dataset.i18n = isLocating ? "locating" : "locate_auto";
+      label.textContent = t(label.dataset.i18n);
+    }
+  }
+
+  const bar = document.getElementById("loadbar");
+  if (bar) bar.hidden = !isLocating;
+}
+
 map.on("dblclick", (e) => {
   if (!locatingmanually) return;
 
   locationRequestId++;
   findingLocation = false;
+  setLocatingUI(false);
 
   setUserLocation(e.latlng);
 
@@ -306,6 +333,7 @@ function FindLocation() {
   }
 
   findingLocation = true;
+  setLocatingUI(true);
 
   let requestId = ++locationRequestId;
 
@@ -313,6 +341,7 @@ function FindLocation() {
     if (requestId !== locationRequestId) return;
 
     findingLocation = false;
+    setLocatingUI(false);
 
     setUserLocation(e.latlng, e.accuracy);
 
@@ -331,6 +360,7 @@ function FindLocation() {
     if (requestId !== locationRequestId) return;
 
     findingLocation = false;
+    setLocatingUI(false);
 
     alert(t("alert_gps_error"));
 
@@ -345,6 +375,7 @@ function FindLocation() {
     });
   } catch (error) {
     findingLocation = false;
+    setLocatingUI(false);
     console.error("Unable to start geolocation:", error);
   }
 }
@@ -557,8 +588,6 @@ function RouteToAmbulance(ambulancePos, ambulanceName, cardElement) {
           min: smartMetrics.timeMins,
           km: smartMetrics.distanceKm
         });
-
-        subSpan.style.color = 'var(--success)';
       }
     }
 
@@ -653,6 +682,16 @@ const PROVINCE_CENTERS = {
 
 function getDriverId() {
   return driverUser ? driverUser.uid : null;
+}
+
+function setDriverProvince(province) {
+  if (!province) return;
+
+  const el = document.getElementById("driverProvince");
+  if (!el) return;
+
+  const hasOption = Array.from(el.options).some((o) => o.value === province);
+  if (hasOption) el.value = province;
 }
 
 function setDriverMsg(text, color = "var(--subtext)") {
@@ -753,8 +792,9 @@ function startDriverGpsWatch() {
 
       simulatedPos = [lat, lng];
 
-      if (firstFix && typeof map !== "undefined" && map && typeof map.panTo === "function") {
-        map.panTo(simulatedPos);
+      if (firstFix && typeof map !== "undefined" && map) {
+        // Zoom to the driver once per sign-in so they can see their own car.
+        map.flyTo(simulatedPos, Math.max(map.getZoom(), 15));
       }
 
       if (firstFix || moved) {
@@ -838,6 +878,47 @@ function authErrorText(err) {
   }
 }
 
+function nearestProvinceCenter(latlng) {
+  let nearest = null;
+  let minDistance = Infinity;
+
+  for (const name in PROVINCE_CENTERS) {
+    const center = PROVINCE_CENTERS[name];
+    const distance = latlng.distanceTo(L.latLng(center[0], center[1]));
+    if (distance < minDistance) {
+      minDistance = distance;
+      nearest = name;
+    }
+  }
+
+  return nearest;
+}
+
+// Asks for GPS during sign-up so the new driver starts in the right province.
+function locateProvinceForSignup() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation || typeof L === "undefined") {
+      resolve(null);
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latlng = L.latLng(pos.coords.latitude, pos.coords.longitude);
+        let province = null;
+
+        try {
+          province = detectClosestProvince(latlng);
+        } catch (e) {}
+
+        resolve(province || nearestProvinceCenter(latlng));
+      },
+      () => resolve(null),
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
+    );
+  });
+}
+
 async function SubmitAuth(event) {
   event.preventDefault();
 
@@ -855,10 +936,24 @@ async function SubmitAuth(event) {
 
   try {
     if (authMode === "signup") {
+      const hint = document.getElementById("authHint");
+      if (hint) hint.textContent = t("auth_locating");
+
+      const province = await locateProvinceForSignup();
+
+      if (hint) hint.textContent = t("auth_loc_hint");
+      if (document.getElementById("authBackdrop").hidden) return;
+
       await window.driverAuth.signUp(email, password, {
         name: document.getElementById("authName").value.trim(),
-        phone: document.getElementById("authPhone").value.trim()
+        phone: document.getElementById("authPhone").value.trim(),
+        province: province
       });
+
+      if (province) {
+        setDriverProvince(province);
+        UpdateDriverStatus(false);
+      }
     } else {
       await window.driverAuth.signIn(email, password);
     }
@@ -908,6 +1003,7 @@ window.onDriverAuthChanged = async function (user) {
   document.getElementById("driverAccount").textContent = user.email;
   document.getElementById("driverName").value = profile.name || user.email;
   document.getElementById("driverPhone").value = profile.phone || "";
+  setDriverProvince(profile.province);
   fillCare(profile.care);
 
   CloseInfoBox();
@@ -1141,6 +1237,7 @@ function saveDriverProfile() {
   window.driverAuth.saveProfile(driverUser.uid, {
     name: document.getElementById("driverName").value.trim(),
     phone: document.getElementById("driverPhone").value.trim(),
+    province: document.getElementById("driverProvince").value,
     care: collectCare()
   }).catch((e) => console.warn("Could not save driver profile:", e));
 }
@@ -1164,7 +1261,7 @@ function onCareChanged() {
     const el = document.getElementById(id);
     if (!el) return;
     el.addEventListener("change", () => {
-      if ((id === "driverName" || id === "driverPhone") && driverUser && window.driverAuth) {
+      if ((id === "driverName" || id === "driverPhone" || id === "driverProvince") && driverUser && window.driverAuth) {
         saveDriverProfile();
       }
       if (driverSimInterval) return;
