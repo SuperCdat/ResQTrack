@@ -33,6 +33,25 @@ function updateAmbulanceListUIWithETA(calculations, preserveSelection = false) {
     renderAmbulanceCards(calculations, preserveSelection);
 }
 
+function getEquipmentBadgeList(equipment) {
+    if (!equipment || typeof equipment !== "object") return [];
+
+    const badges = [];
+    if (equipment.doctor) badges.push(t("badge_doctor"));
+    if (equipment.paramedic) badges.push(t("badge_paramedic"));
+    if (equipment.ventilator) badges.push(t("badge_ventilator"));
+    if (equipment.aed) badges.push(t("badge_aed"));
+    if (equipment.trauma) badges.push(t("badge_trauma"));
+    if (equipment.infusion) badges.push(t("badge_infusion"));
+
+    const beds = parseInt(equipment.beds, 10);
+    if (Number.isFinite(beds) && beds > 0) {
+        badges.push(t("badge_beds", { n: beds }));
+    }
+
+    return badges;
+}
+
 function renderAmbulanceCards(data, preserveSelection = false) {
     const listElement = document.getElementById("amblist");
 
@@ -93,6 +112,17 @@ function renderAmbulanceCards(data, preserveSelection = false) {
             sub.textContent = t("card_hint");
         }
 
+        info.appendChild(name);
+        info.appendChild(sub);
+
+        const eqSummary = getEquipmentBadgeList(ambulance.equipment);
+        if (eqSummary.length > 0) {
+            const eqLine = document.createElement("div");
+            eqLine.className = "card-eq";
+            eqLine.textContent = eqSummary.slice(0, 3).join(" • ");
+            info.appendChild(eqLine);
+        }
+
         const isSelected = preserveSelection && selectedAmbulance && (
             ambulance === selectedAmbulance ||
             (ambulance.id && selectedAmbulance.id && ambulance.id === selectedAmbulance.id) ||
@@ -112,9 +142,6 @@ function renderAmbulanceCards(data, preserveSelection = false) {
             }
         }
 
-        info.appendChild(name);
-        info.appendChild(sub);
-
         card.appendChild(icon);
         card.appendChild(info);
 
@@ -126,9 +153,23 @@ function renderAmbulanceCards(data, preserveSelection = false) {
     });
 }
 
+function renderEquipmentBadges(eqElement, equipment) {
+    if (!eqElement) return;
+    eqElement.replaceChildren();
+
+    const badges = getEquipmentBadgeList(equipment);
+    badges.forEach((label) => {
+        const span = document.createElement("span");
+        span.className = "badge-item";
+        span.textContent = label;
+        eqElement.appendChild(span);
+    });
+}
+
 function renderInfoBox() {
     const nameElement = document.getElementById("ambinfoboxname");
     const phoneElement = document.getElementById("ambinfoboxphonenumber");
+    const eqElement = document.getElementById("ambequipment");
     const etaElement = document.getElementById("ambinfoboxeta");
     const callButton = document.getElementById("call-btn");
 
@@ -149,6 +190,8 @@ function renderInfoBox() {
             phoneElement.textContent = t("phone_none");
         }
     }
+
+    renderEquipmentBadges(eqElement, amb ? amb.equipment : null);
 
     if (etaElement) {
         if (!amb) {

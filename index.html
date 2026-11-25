@@ -81,6 +81,55 @@
       <label for="driverStatus" data-i18n="label_status">Trạng thái hoạt động</label>
     </div>
 
+    <!-- Collapsible equipment & crew panel -->
+    <button type="button" class="equipment-toggle-btn" onclick="ToggleEquipmentPanel()" aria-expanded="false" aria-controls="equipmentPanel">
+      <span>🏥 <span data-i18n="eq_toggle">Trang thiết bị &amp; Kíp y tế</span></span>
+      <span id="eqChevron">▾</span>
+    </button>
+
+    <div id="equipmentPanel" class="equipment-panel hidden">
+      <div class="eq-group-label" data-i18n="eq_group_crew">Kíp trực &amp; Hồi sức</div>
+      <div class="eq-chip-grid">
+        <label class="eq-chip">
+          <input type="checkbox" id="driverDoctor">
+          <span>👨‍⚕️ <span data-i18n="eq_doctor">Bác sĩ</span></span>
+        </label>
+        <label class="eq-chip">
+          <input type="checkbox" id="driverParamedic">
+          <span>🩺 <span data-i18n="eq_paramedic">Y sĩ / Điều dưỡng</span></span>
+        </label>
+        <label class="eq-chip">
+          <input type="checkbox" id="driverVentilator">
+          <span>🌬️ <span data-i18n="eq_ventilator">Máy thở / Oxy</span></span>
+        </label>
+        <label class="eq-chip">
+          <input type="checkbox" id="driverAed">
+          <span>⚡ <span data-i18n="eq_aed">Monitor / Sốc điện</span></span>
+        </label>
+      </div>
+
+      <div class="eq-group-label" data-i18n="eq_group_support">Hỗ trợ chuyên sâu</div>
+      <div class="eq-chip-grid">
+        <label class="eq-chip">
+          <input type="checkbox" id="driverTrauma">
+          <span>🦴 <span data-i18n="eq_trauma">Nẹp &amp; Sơ cứu chấn thương</span></span>
+        </label>
+        <label class="eq-chip">
+          <input type="checkbox" id="driverInfusion">
+          <span>💉 <span data-i18n="eq_infusion">Bơm tiêm / Thuốc cấp cứu</span></span>
+        </label>
+      </div>
+
+      <div class="eq-beds-row">
+        <span class="eq-beds-label" data-i18n="eq_beds_label">Số cáng bệnh nhân</span>
+        <div class="eq-stepper">
+          <button type="button" class="stepper-btn" onclick="StepBeds(-1)" aria-label="Decrease stretchers">−</button>
+          <input type="number" id="driverBeds" min="1" max="6" value="1" readonly>
+          <button type="button" class="stepper-btn" onclick="StepBeds(1)" aria-label="Increase stretchers">+</button>
+        </div>
+      </div>
+    </div>
+
     <div class="driver-actions">
       <button type="button" onclick="PublishDriverNow()" class="action-btn" data-i18n="btn_publish">📡 Cập nhật lên hệ thống</button>
       <button type="button" onclick="SimulateDrive()" class="action-btn secondary" data-i18n="btn_simulate">🚗 Mô phỏng xe chạy</button>
@@ -114,6 +163,7 @@
       <button class="close-btn" type="button" onclick="CloseInfoBox()" aria-label="Close">✕</button>
     </div>
     <p id="ambinfoboxphonenumber"></p>
+    <div id="ambequipment" class="equipment-badges"></div>
     <p id="ambinfoboxeta" class="info-eta"></p>
     <a id="call-btn" href="#" class="call-action-btn" style="display: none;" data-i18n="call_now">📞 Gọi ngay</a>
   </div>
