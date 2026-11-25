@@ -9,6 +9,51 @@ const CARE_ICONS = {
     splint: "🦴"
 };
 
+const CARE_NOTES_SOURCE_LANG = "vi";
+
+const careNotesCache = {};
+
+async function translateFree(text, sourceLang, targetLang) {
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${sourceLang}|${targetLang}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    return data.responseData.translatedText;
+}
+
+function decodeHtmlEntities(text) {
+    const el = document.createElement("textarea");
+    el.innerHTML = text;
+    return el.value;
+}
+
+async function translateCareNotes(text) {
+    if (!text) return null;
+    if (currentLang === CARE_NOTES_SOURCE_LANG) return null;
+
+    const key = currentLang + "|" + text;
+    if (careNotesCache[key]) return careNotesCache[key];
+
+    try {
+        const raw = await translateFree(text, CARE_NOTES_SOURCE_LANG, currentLang);
+        if (typeof raw !== "string") return null;
+
+        // MyMemory signals quota/input errors in the payload with HTTP 200.
+        const trimmed = raw.trim();
+        if (!trimmed) return null;
+        if (/^MYMEMORY WARNING/i.test(trimmed)) return null;
+        if (/INVALID/i.test(trimmed) && trimmed.length < 80) return null;
+
+        const decoded = decodeHtmlEntities(trimmed);
+        if (decoded === text) return null; // no-op translation
+
+        careNotesCache[key] = decoded;
+        return decoded;
+    } catch (e) {
+        console.warn("Care notes translation failed:", e);
+        return null;
+    }
+}
+
 function addAmblist(data) {
     const listElement = document.getElementById("amblist");
 
@@ -196,7 +241,19 @@ function renderCareInfo(amb) {
         box.appendChild(ul);
     }
 
-    if (notes) box.appendChild(add("p", "care-text", notes));
+    if (notes) {
+        const notesEl = add("p", "care-text", notes);
+        box.appendChild(notesEl);
+
+        // Show the original immediately, swap to the translation when it arrives.
+        // If the panel re-rendered or was closed meanwhile, isConnected is false
+        // and the stale promise result is dropped.
+        translateCareNotes(notes).then((translated) => {
+            if (translated && notesEl.isConnected) {
+                notesEl.textContent = translated;
+            }
+        });
+    }
 
     box.hidden = false;
 }

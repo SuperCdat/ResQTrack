@@ -43,12 +43,17 @@
 
   <!-- Driver panel (shown only while signed in) -->
   <aside id="drivermenu">
-    <div class="panel-header">
+    <div class="panel-header" onclick="ToggleDriverDrawer(event)">
       <div class="brand">
         <img src="output-onlinepngtools.png" alt="" width="28" height="28">
         <h2 data-i18n="driver_title">Bảng điều khiển tài xế</h2>
       </div>
-      <button type="button" class="text-btn" onclick="DriverSignOut()" data-i18n="signout">Đăng xuất</button>
+      <div class="menu-header-right">
+        <button type="button" class="text-btn" onclick="DriverSignOut()" data-i18n="signout">Đăng xuất</button>
+        <span class="drawer-chevron" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+        </span>
+      </div>
     </div>
     <p id="driverAccount" class="driver-account"></p>
 
@@ -96,7 +101,6 @@
 
     <div class="driver-actions">
       <button type="button" onclick="PublishDriverNow()" class="action-btn" data-i18n="btn_publish">📡 Cập nhật lên hệ thống</button>
-      <button type="button" onclick="SimulateDrive()" class="action-btn secondary" data-i18n="btn_simulate">🚗 Mô phỏng xe chạy</button>
     </div>
     <p id="driverStatusMsg" class="driver-status-msg"></p>
   </aside>
