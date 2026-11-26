@@ -1,0 +1,22 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "catalogVersion": { ".read": true },
+    "live": {
+      ".read": true,
+      "$province": {
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid",
+          ".validate": "newData.child('lat').isNumber() && newData.child('lng').isNumber()"
+        }
+      }
+    },
+    "drivers": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    }
+  }
+}
