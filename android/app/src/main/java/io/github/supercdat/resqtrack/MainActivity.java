@@ -1,4 +1,4 @@
-package com.resqtrack.app;
+package io.github.supetcdat.resqtrack;
 
 import com.getcapacitor.BridgeActivity;
 
