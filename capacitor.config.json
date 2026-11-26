@@ -1,5 +1,5 @@
 {
-  "appId": "com.resqtrack.app",
+  "appId": "io.github.supercdat.resqtrack",
   "appName": "ResQTrack",
   "webDir": "www"
 }
