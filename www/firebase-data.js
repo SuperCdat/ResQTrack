@@ -25,13 +25,27 @@ const rtdb = getDatabase(app, "https://resqtrack-10d06-default-rtdb.asia-southea
 /* ---- Static catalog: Firestore (1 doc), re-read only when catalogVersion changes ---- */
 
 const CACHE_KEY = "resqtrack-catalog";
+const CATALOG_TIMEOUT_MS = 15000; // increased from 4000 — slow networks get more room
 
-function cachedCatalog(version) {
+function readCatalogCache() {
   try {
     const c = JSON.parse(localStorage.getItem(CACHE_KEY));
-    if (c && version && c.v === version) return c.data;
+    if (c && c.data) return c;
   } catch (e) {}
   return null;
+}
+
+// Only valid when we already know the current version from Firebase
+function cachedCatalog(version) {
+  const c = readCatalogCache();
+  if (c && version && c.v === version) return c.data;
+  return null;
+}
+
+// Any cached data, regardless of version — used as the offline fallback
+function anyCachedCatalog() {
+  const c = readCatalogCache();
+  return c ? c.data : null;
 }
 
 async function fetchCatalog(version) {
@@ -40,19 +54,61 @@ async function fetchCatalog(version) {
 
   const data = snap.data();
   try {
-    localStorage.setItem(CACHE_KEY, JSON.stringify({ v: version, data }));
+    localStorage.setItem(
+      CACHE_KEY,
+      JSON.stringify({ v: version, data, savedAt: Date.now() })
+    );
   } catch (e) {}
   return data;
 }
 
 let catalogShown = false;
 
+function showCatalog(data) {
+  if (!data) return;
+  catalogShown = true;
+  if (typeof applyCatalog === "function") applyCatalog(data);
+}
+
 function fallbackToLocal(reason) {
   console.error("Using local data:", reason);
   if (!catalogShown && typeof loadLocalData === "function") loadLocalData();
 }
 
-setTimeout(() => { if (!catalogShown) fallbackToLocal("Firebase timeout"); }, 4000);
+setTimeout(
+  () => { if (!catalogShown) fallbackToLocal("Firebase timeout"); },
+  CATALOG_TIMEOUT_MS
+);
+
+onValue(ref(rtdb, "catalogVersion"), async (snap) => {
+  const version = snap.val();
+
+  try {
+    const cached = cachedCatalog(version);
+    if (cached) {
+      if (!catalogShown) showCatalog(cached);
+      return;
+    }
+
+    const data = await fetchCatalog(version);
+    liveProvince = null;
+    showCatalog(data);
+  } catch (e) {
+    fallbackToLocal(e);
+  }
+}, (err) => fallbackToLocal(err));
+
+// Show last session's data instantly while Firebase responds. Runs as a
+// macro-task so all module-level `let`s (liveProvince, onProvinceLoaded, …)
+// are initialized before `applyCatalog` → `loadProvinceData` runs.
+setTimeout(() => {
+  if (catalogShown) return;
+  const data = anyCachedCatalog();
+  if (data) {
+    console.log("[catalog] Showing last-session cache (awaiting Firebase)");
+    showCatalog(data);
+  }
+}, 0);
 
 onValue(ref(rtdb, "catalogVersion"), async (snap) => {
   const version = snap.val();

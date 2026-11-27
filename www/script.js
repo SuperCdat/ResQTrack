@@ -62,7 +62,9 @@ let mapOptions = {
 
 let map = new L.map("map", mapOptions);
 
-const OSM_TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+// OpenFreeMap vector tiles (MapLibre GL). Free, no API key.
+const OFM_STYLE_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
+const OFM_STYLE_DARK = "https://tiles.openfreemap.org/styles/dark";
 
 // Esri World Imagery — high-resolution aerial/satellite base
 const ESRI_IMAGERY_TILES =
@@ -78,10 +80,22 @@ const ESRI_ATTRIBUTION =
   "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, " +
   "and the GIS User Community";
 
-const osmLayer = L.tileLayer(OSM_TILES, {
-  attribution: "© OpenStreetMap contributors",
-  maxZoom: 19
+const vectorLayer = L.maplibreGL({
+  style: OFM_STYLE_LIGHT,
+  attribution:
+    '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ' +
+    '© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ' +
+    'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
 });
+
+// Re-adding the layer builds a new GL map, so keep options.style current too.
+function applyVectorTheme(isDark) {
+  const style = isDark ? OFM_STYLE_DARK : OFM_STYLE_LIGHT;
+  vectorLayer.options.style = style;
+
+  const gl = map.hasLayer(vectorLayer) && vectorLayer.getMaplibreMap();
+  if (gl) gl.setStyle(style);
+}
 
 // Base imagery layer
 const esriImageryLayer = L.tileLayer(ESRI_IMAGERY_TILES, {
@@ -103,13 +117,13 @@ const satelliteLabelsLayer = L.tileLayer(LABEL_TILES, {
 });
 
 let activeBase = "osm";
-map.addLayer(osmLayer);
+map.addLayer(vectorLayer);
 
 function ToggleSatellite() {
   const btn = document.getElementById("satellitetoggle");
 
   if (activeBase === "osm") {
-    map.removeLayer(osmLayer);
+    map.removeLayer(vectorLayer);
 
     esriImageryLayer.addTo(map);
     satelliteLabelsLayer.addTo(map);
@@ -125,7 +139,7 @@ function ToggleSatellite() {
     map.removeLayer(esriImageryLayer);
     map.removeLayer(satelliteLabelsLayer);
 
-    osmLayer.addTo(map);
+    vectorLayer.addTo(map);
 
     activeBase = "osm";
     document.body.classList.remove("satellite-active");
@@ -401,6 +415,8 @@ function ToggleTheme() {
 
   if (btn) btn.innerHTML = isDark ? "☀️" : "🌙";
 
+  applyVectorTheme(isDark);
+
   const meta = document.querySelector('meta[name="theme-color"]');
   if (meta) meta.setAttribute("content", isDark ? "#202124" : "#ffffff");
 
@@ -413,6 +429,7 @@ function ToggleTheme() {
   try {
     if (localStorage.getItem(THEME_KEY) === "dark") {
       document.body.classList.add("dark-mode");
+      applyVectorTheme(true);
       const btn = document.getElementById("themetoggle");
       if (btn) btn.innerHTML = "☀️";
       const meta = document.querySelector('meta[name="theme-color"]');
