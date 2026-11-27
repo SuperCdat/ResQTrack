@@ -65,10 +65,7 @@ button:focus-visible, a:focus-visible, [role="button"]:focus-visible {
 #map { position: absolute; inset: 0; z-index: 1; background: var(--bg) !important; }
 
 .leaflet-tile { transition: filter 0.2s ease; }
-body.dark-mode .leaflet-tile { filter: brightness(0.9) invert(1) contrast(1.15) hue-rotate(200deg) saturate(0.4); }
 body.satellite-active #map { background: #000 !important; }
-body.satellite-active .leaflet-tile,
-body.satellite-active.dark-mode .leaflet-tile { filter: none !important; }
 
 .leaflet-tooltip, .leaflet-popup-content-wrapper, .leaflet-popup-tip {
   background: var(--panel) !important;
