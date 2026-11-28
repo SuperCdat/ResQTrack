@@ -504,3 +504,83 @@ body.dark-mode .call-action-btn { color: #202124; }
   color: #bae6fd !important;
   text-decoration: underline;
 }
+
+.pothole-status { margin: 0; font-size: 11px; color: var(--subtext); }
+.pothole-status:empty { display: none; }
+
+body.pothole-placing #map { cursor: crosshair; }
+
+/* ---------- Pothole map marker ---------- */
+.pothole-marker { background: transparent; border: none; }
+.pothole-dot {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+  border-radius: 50%;
+  background: #fbbc04;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.4);
+}
+
+/* ---------- Pothole verify toast ---------- */
+.pothole-toast {
+  position: fixed;
+  z-index: 2500;
+  top: calc(16px + var(--safe-top));
+  left: 50%;
+  transform: translateX(-50%);
+  width: 360px;
+  max-width: 92vw;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  background: var(--panel);
+  border-left: 4px solid #fbbc04;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+}
+.pothole-toast .pt-title { font-size: 14px; font-weight: 500; color: var(--text); }
+.pothole-toast .pt-actions { display: flex; align-items: center; gap: 6px; justify-content: flex-end; }
+
+/* ---------- Mobile: fold menu into driver sheet ---------- */
+@media (max-width: 768px) {
+  
+  .pothole-toast { top: calc(12px + var(--safe-top)); }
+}
+
+/* Dark mode for OSM tiles (no native dark variant). */
+.osm-dark {
+  filter: invert(1) hue-rotate(180deg) brightness(0.9) contrast(1.05) saturate(0.75);
+}
+
+/* ---------- Pothole report section (inside driver menu) ---------- */
+.pothole-box { margin-top: 16px; }
+.pothole-report-btn { width: 100%; height: 36px; padding: 0 14px; font-size: 13px; box-shadow: none; }
+.pothole-status { min-height: 0; margin: 8px 0 0; font-size: 12px; color: var(--subtext); }
+.pothole-status:empty { margin: 0; display: none; }
+
+/* ---------- Satellite save button + offline badge ---------- */
+#savesatbtn { font-size: 16px; }
+#savesatbtn:disabled { opacity: 0.5; cursor: wait; }
+
+body.satellite-active.satellite-offline::after {
+  content: "📡 Offline — showing saved satellite areas only";
+  position: fixed;
+  z-index: 2500;
+  left: 50%;
+  top: calc(12px + var(--safe-top));
+  transform: translateX(-50%);
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(32, 33, 36, 0.9);
+  color: #e8eaed;
+  font-size: 12px;
+  font-weight: 500;
+  pointer-events: none;
+  box-shadow: var(--shadow);
+}
+body.dark-mode.satellite-active.satellite-offline::after {
+  background: rgba(232, 234, 237, 0.95);
+  color: #202124;
+}

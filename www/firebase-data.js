@@ -289,3 +289,69 @@ window.pushDriverLivePos = async (province, carId, lat, lng, meta = null) => {
     console.error("Lỗi ghi vị trí lên RTDB:", err);
   }
 };
+
+/* ---- Pothole reports: RTDB, per province (drivers only) ---- */
+
+let potholesRef = null;
+let potholesProvince = null;
+
+window.potholeApi = {
+  async report(province, lat, lng, note = "") {
+    const user = auth.currentUser;
+    if (!user) throw new Error("not signed in");
+    const id = `p_${Date.now()}_${user.uid.slice(-6)}`;
+    await set(ref(rtdb, `potholes/${province}/${id}`), {
+      lat,
+      lng,
+      reportedBy: user.uid,
+      reportedAt: Date.now(),
+      note: note || "",
+      verifiedAt: 0,
+      verifiedBy: ""
+    });
+    return id;
+  },
+
+  async verifyStillThere(province, id) {
+    const user = auth.currentUser;
+    if (!user) return;
+    await update(ref(rtdb, `potholes/${province}/${id}`), {
+      verifiedAt: Date.now(),
+      verifiedBy: user.uid
+    });
+  },
+
+  async remove(province, id) {
+    await remove(ref(rtdb, `potholes/${province}/${id}`));
+  }
+};
+
+window.watchPotholesForProvince = (province) => {
+  if (province === potholesProvince) return;
+
+  if (potholesRef) {
+    off(potholesRef);
+    potholesRef = null;
+  }
+  potholesProvince = province || null;
+
+  if (!province) {
+    if (typeof window.onPotholesUpdate === "function") {
+      window.onPotholesUpdate(null, []);
+    }
+    return;
+  }
+
+  potholesRef = ref(rtdb, `potholes/${province}`);
+  onValue(
+    potholesRef,
+    (snap) => {
+      const data = snap.val() || {};
+      const list = Object.entries(data).map(([id, p]) => ({ id, ...p }));
+      if (typeof window.onPotholesUpdate === "function") {
+        window.onPotholesUpdate(province, list);
+      }
+    },
+    (err) => console.warn("Pothole watch error:", err)
+  );
+};

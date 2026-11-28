@@ -1,9 +1,13 @@
-// ResQTrack service worker — offline app shell + map tile cache.
-
 const VERSION = "v1";
-const SHELL_CACHE = `resqtrack-shell-${VERSION}`;
-const TILE_CACHE  = `resqtrack-tiles-${VERSION}`;
-const CDN_CACHE   = `resqtrack-cdn-${VERSION}`;
+const SHELL_CACHE   = `resqtrack-shell-${VERSION}`;
+const CDN_CACHE     = `resqtrack-cdn-${VERSION}`;
+const TILES_STREET  = `resqtrack-tiles-street-${VERSION}`;
+const TILES_SAT     = `resqtrack-tiles-sat-${VERSION}`;
+const TILE_CACHES   = [TILES_STREET, TILES_SAT];
+
+// Satellite cache limits — these tiles are big (30–100 KB each), so cap them.
+const SAT_MAX_ENTRIES = 2500;          // ~150–250 MB depending on tile weight
+const SAT_TRIM_TO     = 1800;          // evict down to this when over cap
 
 const SHELL_ASSETS = [
   "./",
@@ -17,32 +21,32 @@ const SHELL_ASSETS = [
   "./output-onlinepngtools.png"
 ];
 
-// Never cache — realtime, auth-sensitive, or user-specific.
+// Never cache — realtime, auth, or user-specific.
 const BYPASS_KEYWORDS = [
-  "firebase",       // firebasedatabase.app, firebaseapp.com, …
-  "firestore",
-  "identitytoolkit",
-  "securetoken",
-  "mymemory",
-  "osrm"
+  "firebase", "firestore", "identitytoolkit", "securetoken", "mymemory", "osrm"
 ];
 
-const TILE_HOSTS = ["openfreemap.org", "arcgisonline.com", "cartocdn.com"];
+// Street tiles get their own cache so satellite can't crowd them out.
+const STREET_HOSTS = ["tile.openstreetmap.org", "openfreemap.org"];
 
-// Third-party libs, fonts, Firebase SDK (served from gstatic).
-const CDN_HOSTS  = ["unpkg.com", "gstatic.com", "fonts.googleapis.com"];
+// Satellite imagery + its dark label overlay (CARTO) — capped and evictable.
+const SAT_HOSTS = ["arcgisonline.com", "basemaps.cartocdn.com"];
+
+const CDN_HOSTS = ["unpkg.com", "gstatic.com", "fonts.googleapis.com"];
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(SHELL_CACHE).then(async (cache) => {
-      // cache.add per URL so one miss doesn't abort the whole install
-      await Promise.all(
-        SHELL_ASSETS.map((url) =>
-          cache.add(url).catch((e) => console.warn("[sw] cache miss", url, e))
-        )
-      );
-    })
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(SHELL_CACHE);
+    await Promise.all(
+      SHELL_ASSETS.map((url) =>
+        cache.add(url).catch((e) => console.warn("[sw] cache miss", url, e))
+      )
+    );
+    // Ask the browser not to evict us under storage pressure.
+    if (self.navigator && self.navigator.storage && self.navigator.storage.persist) {
+      self.navigator.storage.persist().catch(() => {});
+    }
+  })());
   self.skipWaiting();
 });
 
@@ -63,13 +67,25 @@ function hostMatches(hostname, list) {
   return list.some((h) => hostname.includes(h));
 }
 
-async function cacheFirst(req, cacheName) {
+async function trimSatCache() {
+  const cache = await caches.open(TILES_SAT);
+  const keys = await cache.keys();
+  if (keys.length <= SAT_MAX_ENTRIES) return;
+  const drop = keys.length - SAT_TRIM_TO;
+  for (let i = 0; i < drop; i++) {
+    await cache.delete(keys[i]);
+  }
+  console.log(`[sw] trimmed ${drop} satellite tiles (${keys.length} → ${SAT_TRIM_TO})`);
+}
+
+async function cacheFirst(req, cacheName, isSat) {
   const cache = await caches.open(cacheName);
   const hit = await cache.match(req);
   if (hit) return hit;
   try {
     const res = await fetch(req);
     if (res && (res.status === 200 || res.type === "opaque")) {
+      if (isSat) await trimSatCache();
       cache.put(req, res.clone()).catch(() => {});
     }
     return res;
@@ -82,9 +98,7 @@ async function networkFirst(req, cacheName) {
   const cache = await caches.open(cacheName);
   try {
     const res = await fetch(req);
-    if (res && res.status === 200) {
-      cache.put(req, res.clone()).catch(() => {});
-    }
+    if (res && res.status === 200) cache.put(req, res.clone()).catch(() => {});
     return res;
   } catch (e) {
     const hit = await cache.match(req);
@@ -118,23 +132,58 @@ self.addEventListener("fetch", (event) => {
   let url;
   try { url = new URL(req.url); } catch (e) { return; }
 
-  // Live data / auth / routing / translation: always network
   if (hostMatches(url.hostname, BYPASS_KEYWORDS)) return;
 
-  // Map tiles: cache-first, so panning the same area works offline
-  if (hostMatches(url.hostname, TILE_HOSTS)) {
-    event.respondWith(cacheFirst(req, TILE_CACHE));
+  if (hostMatches(url.hostname, STREET_HOSTS)) {
+    event.respondWith(cacheFirst(req, TILES_STREET, false));
     return;
   }
-
-  // CDN libraries + fonts: fast + resilient, background refresh
+  if (hostMatches(url.hostname, SAT_HOSTS)) {
+    event.respondWith(cacheFirst(req, TILES_SAT, true));
+    return;
+  }
   if (hostMatches(url.hostname, CDN_HOSTS)) {
     event.respondWith(staleWhileRevalidate(req, CDN_CACHE));
     return;
   }
-
-  // Same-origin: app shell, data files, icon
   if (url.origin === self.location.origin) {
     event.respondWith(networkFirst(req, SHELL_CACHE));
   }
 });
+
+/* ---- Prefetch handler: page asks us to save a batch of satellite tiles ---- */
+
+self.addEventListener("message", (event) => {
+  const msg = event.data;
+  if (!msg || msg.type !== "CACHE_TILES") return;
+  cacheTilesBatch(msg.urls || []);
+});
+
+async function cacheTilesBatch(urls) {
+  if (!urls.length) return;
+  const cache = await caches.open(TILES_SAT);
+  let done = 0;
+
+  for (const url of urls) {
+    try {
+      const hit = await cache.match(url);
+      if (!hit) {
+        const res = await fetch(url, { mode: "no-cors" });
+        if (res) await cache.put(url, res);
+      }
+    } catch (e) {
+      // ignore single-tile failures — user just doesn't get that tile offline
+    }
+    done++;
+    if (done % 25 === 0 || done === urls.length) {
+      broadcastProgress(done, urls.length, done === urls.length);
+    }
+  }
+
+  await trimSatCache();
+}
+
+async function broadcastProgress(done, total, complete) {
+  const clients = await self.clients.matchAll({ includeUncontrolled: true });
+  clients.forEach((c) => c.postMessage({ type: "TILE_PROGRESS", done, total, complete }));
+}

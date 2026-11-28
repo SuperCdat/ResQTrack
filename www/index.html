@@ -9,7 +9,6 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&display=swap">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
-  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.css" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />
   <link rel="stylesheet" href="style.css">
 </head>
@@ -68,9 +67,9 @@
     </div>
     <div class="field">
       <select id="driverProvince">
-        <option value="Cần Thơ" selected>Cần Thơ</option>
+        <option value="An Giang" selected>An Giang</option>
+        <option value="Cần Thơ">Cần Thơ</option>
         <option value="Hồ Chí Minh">Hồ Chí Minh</option>
-        <option value="An Giang">An Giang</option>
         <option value="Vĩnh Long">Vĩnh Long</option>
         <option value="Đồng Tháp">Đồng Tháp</option>
         <option value="Hà Nội">Hà Nội</option>
@@ -104,12 +103,20 @@
       <button type="button" onclick="PublishDriverNow()" class="action-btn" data-i18n="btn_publish">📡 Cập nhật lên hệ thống</button>
     </div>
     <p id="driverStatusMsg" class="driver-status-msg"></p>
+    <fieldset class="care-box pothole-box">
+      <legend data-i18n="pothole_title">Báo cáo ổ gà</legend>
+      <button type="button" class="action-btn pothole-report-btn" onclick="PotholeReportHere()" data-i18n="pothole_report_here">📍 Báo cáo tại đây</button>
+      <p class="pothole-status"></p>
+    </fieldset>
   </aside>
 
   <div class="map-hud-controls">
     <button id="langtoggle" type="button" onclick="ToggleLanguage()" title="Switch language">EN</button>
     <button id="themetoggle" type="button" onclick="ToggleTheme()" data-i18n-title="tt_theme" title="Toggle Theme">🌙</button>
     <button id="satellitetoggle" type="button" onclick="ToggleSatellite()" data-i18n-title="tt_satellite" title="Satellite View">🛰️</button>
+    <button id="savesatbtn" type="button" onclick="SaveSatelliteArea()"
+        data-i18n-title="save_offline_view" title="Save current view for offline"
+        style="display:none;">💾</button>
   </div>
 
   <div class="zoom-controls">
@@ -176,8 +183,6 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
-  <script src="https://unpkg.com/maplibre-gl@5.6.0/dist/maplibre-gl.js"></script>
-  <script src="https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.3/leaflet-maplibre-gl.js"></script>
   <script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>
   <script src="i18n.js"></script>
   <script src="script.js"></script>
