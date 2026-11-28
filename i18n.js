@@ -83,7 +83,21 @@ const I18N = {
       "Vui lòng kiểm tra quyền truy cập vị trí hoặc chọn thủ công.",
     alert_need_start:
       "Vui lòng bấm 'Tự động định vị' hoặc 'Chọn thủ công' trước để chọn điểm xuất phát!",
-    alert_routing_lib: "Không thể tải thư viện tìm đường. Vui lòng thử lại sau."
+    alert_routing_lib: "Không thể tải thư viện tìm đường. Vui lòng thử lại sau.",
+    pothole_title: "Báo cáo ổ gà",
+    pothole_report_here: "📍 Báo cáo tại đây",
+    pothole_reported: "Đã báo cáo ổ gà.",
+    pothole_report_failed: "Không thể báo cáo ổ gà.",
+    pothole_toast_title: "⚠️ Ổ gà cách {m}m. Vẫn còn đó chứ?",
+    pothole_still_there: "Vẫn còn",
+    pothole_fixed: "Đã sửa ✓",
+    save_offline_view: "Lưu khu vực xem offline",
+    saving_tiles: "Đang lưu {n} ô bản đồ...",
+    saving_progress: "Đang lưu {done}/{total}...",
+    saved_tiles: "Đã lưu {n} ô bản đồ",
+    online_required: "Cần kết nối mạng để lưu.",
+    offline_unavailable: "Trình duyệt không hỗ trợ lưu offline.",
+    save_requires_satellite: "Hãy bật chế độ vệ tinh trước.",
   },
   en: {
     doc_title: "ResQTrack - Emergency Dispatch",
@@ -169,7 +183,21 @@ const I18N = {
       "Please check location permissions or pick manually.",
     alert_need_start:
       "Please press 'Auto locate' or 'Pick manually' first to set a starting point!",
-    alert_routing_lib: "Could not load the routing library. Please try again later."
+    alert_routing_lib: "Could not load the routing library. Please try again later.",
+    pothole_title: "Report potholes",
+    pothole_report_here: "📍 Report here",
+    pothole_reported: "Pothole reported.",
+    pothole_report_failed: "Could not report pothole.",
+    pothole_toast_title: "⚠️ Pothole {m}m ahead. Is it still there?",
+    pothole_still_there: "Still there",
+    pothole_fixed: "Fixed ✓",
+    save_offline_view: "Save current view offline",
+    saving_tiles: "Saving {n} map tiles...",
+    saving_progress: "Saving {done}/{total}...",
+    saved_tiles: "Saved {n} map tiles",
+    online_required: "Needs a network connection to save.",
+    offline_unavailable: "Browser doesn't support offline saving.",
+    save_requires_satellite: "Turn on satellite view first.",
   }
 };
 

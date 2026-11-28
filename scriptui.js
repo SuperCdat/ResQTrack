@@ -391,3 +391,71 @@ function refreshLanguageUI() {
 applyStaticTranslations();
 updateLangButton();
 renderInfoBox();
+
+/* ---- Pothole verify toast (driver, near an active pothole) ---- */
+
+let activePotholeToast = null;
+
+function showPotholeVerifyToast(province, pothole, distanceM) {
+  if (activePotholeToast && activePotholeToast.dataset.pid === pothole.id) return;
+  dismissPotholeToast();
+
+  const toast = document.createElement("div");
+  toast.className = "pothole-toast";
+  toast.dataset.pid = pothole.id;
+
+  const title = document.createElement("div");
+  title.className = "pt-title";
+  title.textContent = t("pothole_toast_title", { m: distanceM });
+
+  const actions = document.createElement("div");
+  actions.className = "pt-actions";
+
+  const still = document.createElement("button");
+  still.type = "button";
+  still.className = "text-btn";
+  still.textContent = t("pothole_still_there");
+  still.onclick = async () => {
+    setPotholeCooldown(pothole.id);
+    try { await window.potholeApi.verifyStillThere(province, pothole.id); } catch (e) {}
+    dismissPotholeToast();
+  };
+
+  const fixed = document.createElement("button");
+  fixed.type = "button";
+  fixed.className = "action-btn";
+  fixed.style.height = "32px";
+  fixed.style.padding = "0 14px";
+  fixed.textContent = t("pothole_fixed");
+  fixed.onclick = async () => {
+    setPotholeCooldown(pothole.id);
+    try { await window.potholeApi.remove(province, pothole.id); } catch (e) {}
+    dismissPotholeToast();
+  };
+
+  const close = document.createElement("button");
+  close.type = "button";
+  close.className = "close-btn";
+  close.textContent = "✕";
+  close.onclick = () => {
+    setPotholeCooldown(pothole.id);
+    dismissPotholeToast();
+  };
+
+  actions.append(still, fixed, close);
+  toast.append(title, actions);
+  document.body.appendChild(toast);
+  activePotholeToast = toast;
+
+  toast._timer = setTimeout(() => {
+    setPotholeCooldown(pothole.id);
+    dismissPotholeToast();
+  }, 20000);
+}
+
+function dismissPotholeToast() {
+  if (!activePotholeToast) return;
+  if (activePotholeToast._timer) clearTimeout(activePotholeToast._timer);
+  activePotholeToast.remove();
+  activePotholeToast = null;
+}

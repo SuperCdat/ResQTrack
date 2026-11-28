@@ -18,6 +18,7 @@ function ZoomOut() {
 }
 
 function LocateManually() {
+
   locatingmanually = !locatingmanually;
 
   locationRequestId++;
@@ -62,49 +63,56 @@ let mapOptions = {
 
 let map = new L.map("map", mapOptions);
 
-// OpenFreeMap vector tiles (MapLibre GL). Free, no API key.
-const OFM_STYLE_LIGHT = "https://tiles.openfreemap.org/styles/liberty";
-const OFM_STYLE_DARK = "https://tiles.openfreemap.org/styles/dark";
+// OpenStreetMap standard raster tiles.
+const OSM_TILES = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+
+const OSM_ATTRIBUTION =
+  '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a> contributors';
+
+const osmLightLayer = L.tileLayer(OSM_TILES, {
+  attribution: OSM_ATTRIBUTION,
+  maxZoom: 19,
+  className: "osm-tiles osm-light"
+});
+
+const osmDarkLayer = L.tileLayer(OSM_TILES, {
+  attribution: OSM_ATTRIBUTION,
+  maxZoom: 19,
+  className: "osm-tiles osm-dark"
+});
+
+let cartoLayer = null;
+
+// Kept name for ToggleTheme / initTheme call sites.
+function applyVectorTheme(isDark) {
+  if (activeBase === "satellite") return;
+
+  if (cartoLayer && map.hasLayer(cartoLayer)) {
+    map.removeLayer(cartoLayer);
+  }
+  cartoLayer = isDark ? osmDarkLayer : osmLightLayer;
+  cartoLayer.addTo(map);
+}
+
+// CARTO key — only used by the satellite labels overlay now.
+const CARTO_KEY = "cb1_5fwb_1_daad9535186f86343eb1a022";
+const LABEL_TILES = `https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png?key=${CARTO_KEY}`;
 
 // Esri World Imagery — high-resolution aerial/satellite base
 const ESRI_IMAGERY_TILES =
   "https://server.arcgisonline.com/ArcGIS/rest/services/" +
   "World_Imagery/MapServer/tile/{z}/{y}/{x}";
 
-// Place + road labels from OpenStreetMap data (CARTO). OSM is community-maintained, so it
-// follows Vietnam's 2025 province mergers; Esri's reference layers still show the old map.
-// Light text with a dark halo reads well over imagery.
-const LABEL_TILES = "https://{s}.basemaps.cartocdn.com/dark_only_labels/{z}/{x}/{y}{r}.png?key=cb1_5fwb_1_daad9535186f86343eb1a022";
-
 const ESRI_ATTRIBUTION =
   "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, " +
   "and the GIS User Community";
 
-const vectorLayer = L.maplibreGL({
-  style: OFM_STYLE_LIGHT,
-  attribution:
-    '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> ' +
-    '© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> ' +
-    'Data from <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>'
-});
-
-// Re-adding the layer builds a new GL map, so keep options.style current too.
-function applyVectorTheme(isDark) {
-  const style = isDark ? OFM_STYLE_DARK : OFM_STYLE_LIGHT;
-  vectorLayer.options.style = style;
-
-  const gl = map.hasLayer(vectorLayer) && vectorLayer.getMaplibreMap();
-  if (gl) gl.setStyle(style);
-}
-
-// Base imagery layer
 const esriImageryLayer = L.tileLayer(ESRI_IMAGERY_TILES, {
   attribution: ESRI_ATTRIBUTION,
   maxZoom: 19,
   maxNativeZoom: 18
 });
 
-// Dedicated pane: above imagery, below routes/markers, never blocks clicks
 map.createPane("labelsPane");
 map.getPane("labelsPane").style.zIndex = 350;
 map.getPane("labelsPane").style.pointerEvents = "none";
@@ -117,13 +125,14 @@ const satelliteLabelsLayer = L.tileLayer(LABEL_TILES, {
 });
 
 let activeBase = "osm";
-map.addLayer(vectorLayer);
+cartoLayer = osmLightLayer;
+cartoLayer.addTo(map);
 
 function ToggleSatellite() {
   const btn = document.getElementById("satellitetoggle");
 
   if (activeBase === "osm") {
-    map.removeLayer(vectorLayer);
+    if (cartoLayer && map.hasLayer(cartoLayer)) map.removeLayer(cartoLayer);
 
     esriImageryLayer.addTo(map);
     satelliteLabelsLayer.addTo(map);
@@ -139,7 +148,10 @@ function ToggleSatellite() {
     map.removeLayer(esriImageryLayer);
     map.removeLayer(satelliteLabelsLayer);
 
-    vectorLayer.addTo(map);
+    cartoLayer = document.body.classList.contains("dark-mode")
+      ? osmDarkLayer
+      : osmLightLayer;
+    cartoLayer.addTo(map);
 
     activeBase = "osm";
     document.body.classList.remove("satellite-active");
@@ -149,6 +161,111 @@ function ToggleSatellite() {
       btn.title = t("tt_satellite");
     }
   }
+
+  updateSatSaveButton();
+}
+
+/* ---- Satellite offline: tile enumeration + prefetch ---- */
+
+function lngToTileX(lng, z) {
+  return Math.floor((lng + 180) / 360 * Math.pow(2, z));
+}
+
+function latToTileY(lat, z) {
+  const rad = lat * Math.PI / 180;
+  return Math.floor(
+    (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2 * Math.pow(2, z)
+  );
+}
+
+// Esri tile URL — note {z}/{y}/{x} order (y before x).
+function esriTileUrl(z, x, y) {
+  return `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`;
+}
+
+function enumerateSatTiles(bounds, z, cap) {
+  const nw = bounds.getNorthWest();
+  const se = bounds.getSouthEast();
+  const x0 = lngToTileX(nw.lng, z);
+  const x1 = lngToTileX(se.lng, z);
+  const y0 = latToTileY(nw.lat, z);
+  const y1 = latToTileY(se.lat, z);
+  const urls = [];
+  for (let x = x0; x <= x1; x++) {
+    for (let y = y0; y <= y1; y++) {
+      urls.push(esriTileUrl(z, x, y));
+      if (urls.length >= cap) return urls;
+    }
+  }
+  return urls;
+}
+
+let saveSatBusy = false;
+const SAT_ZOOM_LEVELS = 3;     // current + 2 deeper
+const SAT_TOTAL_CAP = 800;     // hard ceiling per save
+
+function setSaveSatStatus(text) {
+  const btn = document.getElementById("savesatbtn");
+  if (btn) btn.title = text || t("save_offline_view");
+}
+
+async function SaveSatelliteArea() {
+  if (saveSatBusy) return;
+
+  if (!("serviceWorker" in navigator) || !navigator.serviceWorker.controller) {
+    setSaveSatStatus(t("offline_unavailable"));
+    return;
+  }
+  if (!navigator.onLine) {
+    setSaveSatStatus(t("online_required"));
+    return;
+  }
+  if (activeBase !== "satellite") {
+    setSaveSatStatus(t("save_requires_satellite"));
+    return;
+  }
+
+  saveSatBusy = true;
+  const btn = document.getElementById("savesatbtn");
+  if (btn) btn.disabled = true;
+
+  const bounds = map.getBounds();
+  const z0 = Math.round(map.getZoom());
+  const maxZ = 18; // Esri native limit
+  const urls = [];
+
+  for (let dz = 0; dz < SAT_ZOOM_LEVELS; dz++) {
+    const z = Math.min(z0 + dz, maxZ);
+    const remaining = SAT_TOTAL_CAP - urls.length;
+    if (remaining <= 0) break;
+    urls.push(...enumerateSatTiles(bounds, z, remaining));
+  }
+
+  if (!urls.length) {
+    saveSatBusy = false;
+    if (btn) btn.disabled = false;
+    return;
+  }
+
+  setSaveSatStatus(t("saving_tiles", { n: urls.length }));
+  navigator.serviceWorker.controller.postMessage({ type: "CACHE_TILES", urls });
+}
+
+// Progress messages from the service worker
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.addEventListener("message", (event) => {
+    const msg = event.data;
+    if (!msg || msg.type !== "TILE_PROGRESS") return;
+
+    if (msg.complete) {
+      saveSatBusy = false;
+      const btn = document.getElementById("savesatbtn");
+      if (btn) btn.disabled = false;
+      setSaveSatStatus(t("saved_tiles", { n: msg.total }));
+    } else {
+      setSaveSatStatus(t("saving_progress", { done: msg.done, total: msg.total }));
+    }
+  });
 }
 
 ambulanceIcon = L.icon({
@@ -158,9 +275,33 @@ ambulanceIcon = L.icon({
   tooltipAnchor: [0, 20]
 });
 
+const potholeIcon = L.divIcon({
+  className: "pothole-marker",
+  html: '<div class="pothole-dot">🕳️</div>',
+  iconSize: [26, 26],
+  iconAnchor: [13, 13]
+});
+
 let currentProvince = null;
 
-// Called by firebase-data.js with the full catalog ({ province: [ambulances] })
+const LAST_LOC_KEY = "resqtrack-last-loc";
+let savedUserLoc = null;
+try {
+  const raw = JSON.parse(localStorage.getItem(LAST_LOC_KEY));
+  if (raw && typeof raw.lat === "number" && typeof raw.lng === "number") savedUserLoc = raw;
+} catch (e) {}
+
+/* ---- Pothole state ---- */
+let potholesByProvince = {};
+let potholeMarkers = {};
+let lastPotholeReportAt = 0;
+
+const POTHOLE_NOTIFY_RADIUS_M = 200;
+const POTHOLE_VERIFY_COOLDOWN_MS = 24 * 60 * 60 * 1000;   // server verifiedAt gate
+const POTHOLE_DISMISS_COOLDOWN_MS = 2 * 60 * 60 * 1000;   // client dismiss gate
+const POTHOLE_REPORT_THROTTLE_MS = 15000;
+const POTHOLE_CD_KEY = "resqtrack-pothole-cd";
+
 function applyCatalog(dataraw) {
   const bar = document.getElementById("loadbar");
   if (bar) bar.hidden = true;
@@ -169,7 +310,24 @@ function applyCatalog(dataraw) {
 
   let province = dataraw && dataraw[currentProvince]
     ? currentProvince
-    : (dataraw && "Cần Thơ" in dataraw ? "Cần Thơ" : Object.keys(dataraw || {})[0]);
+    : (dataraw && "An Giang" in dataraw ? "An Giang" : Object.keys(dataraw || {})[0]);
+
+  if (savedUserLoc && savedUserLoc.province && dataraw && dataraw[savedUserLoc.province]) {
+    province = savedUserLoc.province;
+  }
+
+  // Restore the last known user position before loading the province, so the
+  // list computes ETAs from it on first render.
+  if (savedUserLoc) {
+    setUserLocation(
+      L.latLng(savedUserLoc.lat, savedUserLoc.lng),
+      savedUserLoc.accuracy || null,
+      { restore: true }
+    );
+    if (savedUserLoc.zoom) {
+      map.setView([savedUserLoc.lat, savedUserLoc.lng], savedUserLoc.zoom);
+    }
+  }
 
   if (province) {
     loadProvinceData(province);
@@ -208,7 +366,17 @@ function loadProvinceData(provinceName) {
     let marker = new L.Marker(data[i].pos, {
       title: localizeName(data[i].name),
       icon: ambulanceIcon
+      
     });
+
+    const potholeIcon = L.divIcon({
+      className: "pothole-marker",
+      html: '<div class="pothole-dot">🕳️</div>',
+      iconSize: [26, 26],
+      iconAnchor: [13, 13]
+    });
+
+    
 
     marker.provinceName = provinceName;
     marker.ambName = data[i].name;
@@ -230,6 +398,12 @@ function loadProvinceData(provinceName) {
   console.log(`Loaded province: ${provinceName}`);
 
   if (window.onProvinceLoaded) window.onProvinceLoaded(provinceName);
+
+  saveLastLocation();
+
+  if (driverUser && typeof window.watchPotholesForProvince === "function") {
+    window.watchPotholesForProvince(provinceName);
+  }
 }
 
 function detectClosestProvince(userLatLng) {
@@ -278,7 +452,21 @@ function clearLocationLayers() {
   locaccuracy = null;
 }
 
-function setUserLocation(latlng, accuracy = null) {
+function saveLastLocation() {
+  if (!locfound) return;
+  try {
+    localStorage.setItem(LAST_LOC_KEY, JSON.stringify({
+      lat: locfound.lat,
+      lng: locfound.lng,
+      accuracy: locfoundaccuracy || 0,
+      province: currentProvince || null,
+      zoom: (typeof map !== "undefined" && map) ? map.getZoom() : 14
+    }));
+  } catch (e) {}
+}
+
+function setUserLocation(latlng, accuracy = null, opts = {}) {
+  const restore = !!(opts && opts.restore);
   clearLocationLayers();
 
   if (routingControl) {
@@ -299,20 +487,20 @@ function setUserLocation(latlng, accuracy = null) {
 
   if (accuracy && accuracy > 0) {
     loc.bindPopup(t("popup_gps", { m: Math.round(accuracy) }));
-
     locaccuracy = L.circle(locfound, {
       radius: accuracy,
       color: '#2563eb', weight: 2, opacity: 1,
       fillColor: '#2563eb', fillOpacity: 0.12
     });
-
     map.addLayer(locaccuracy);
-  } else {
+  } else if (!restore) {
     loc.bindPopup(t("popup_manual"));
   }
 
-  loc.openPopup();
+  if (!restore) loc.openPopup();
   map.addLayer(loc);
+
+  saveLastLocation();
 }
 
 // Disables the locate button and shows the top progress bar while a fix is pending
@@ -683,12 +871,124 @@ function refreshAfterLive() {
   }
 }
 
+/* ================= Pothole reports (driver) ================= */
+
+window.onPotholesUpdate = function (province, list) {
+  if (province === null) {
+    potholesByProvince = {};
+    renderPotholes();
+    return;
+  }
+  for (const k in potholesByProvince) {
+    if (k !== province) delete potholesByProvince[k];
+  }
+  potholesByProvince[province] = list;
+  renderPotholes();
+};
+
+function renderPotholes() {
+  if (typeof map === "undefined" || !map) return;
+
+  const list = potholesByProvince[currentProvince] || [];
+  const keep = new Set(list.map((p) => p.id));
+
+  for (const id in potholeMarkers) {
+    if (!keep.has(id)) {
+      map.removeLayer(potholeMarkers[id]);
+      delete potholeMarkers[id];
+    }
+  }
+
+  list.forEach((p) => {
+    if (typeof p.lat !== "number" || typeof p.lng !== "number") return;
+    if (potholeMarkers[p.id]) return;
+    const m = L.marker([p.lat, p.lng], { icon: potholeIcon, interactive: false });
+    m.addTo(map);
+    potholeMarkers[p.id] = m;
+  });
+}
+
+function setPotholeMsg(text, color = "var(--subtext)") {
+  const el = document.querySelector(".pothole-status");
+  if (!el) return;
+  el.textContent = text || "";
+  el.style.color = color;
+}
+
+function potholeProvinceForReport() {
+  const el = document.getElementById("driverProvince");
+  return (el && el.value) || currentProvince;
+}
+
+async function reportPotholeAt(province, lat, lng) {
+  if (!window.potholeApi || !driverUser) return;
+  try {
+    await window.potholeApi.report(province, lat, lng);
+    setPotholeMsg(t("pothole_reported"), "var(--success)");
+  } catch (e) {
+    console.error("Pothole report failed:", e);
+    setPotholeMsg(t("pothole_report_failed"), "var(--danger)");
+  }
+}
+
+function PotholeReportHere() {
+  if (!driverUser) return;
+  if (Date.now() - lastPotholeReportAt < POTHOLE_REPORT_THROTTLE_MS) return;
+  const province = potholeProvinceForReport();
+  if (!province) return;
+  if (!Array.isArray(simulatedPos) || simulatedPos.length < 2) return;
+  lastPotholeReportAt = Date.now();
+  reportPotholeAt(province, simulatedPos[0], simulatedPos[1]);
+}
+
+function getPotholeCooldowns() {
+  try { return JSON.parse(localStorage.getItem(POTHOLE_CD_KEY)) || {}; } catch (e) { return {}; }
+}
+
+function getPotholeCooldown(id) {
+  return getPotholeCooldowns()[id] || 0;
+}
+
+function setPotholeCooldown(id) {
+  const c = getPotholeCooldowns();
+  c[id] = Date.now();
+  const cutoff = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  for (const k in c) if (c[k] < cutoff) delete c[k];
+  try { localStorage.setItem(POTHOLE_CD_KEY, JSON.stringify(c)); } catch (e) {}
+}
+
+function checkNearbyPotholes() {
+  if (!driverUser || !currentProvince) return;
+  if (!Array.isArray(simulatedPos) || simulatedPos.length < 2) return;
+
+  const list = potholesByProvince[currentProvince] || [];
+  if (!list.length) return;
+
+  const me = L.latLng(simulatedPos[0], simulatedPos[1]);
+  const now = Date.now();
+
+  for (const p of list) {
+    if (typeof p.lat !== "number" || typeof p.lng !== "number") continue;
+    if (p.reportedBy === driverUser.uid) continue;
+    if (p.verifiedAt && now - p.verifiedAt < POTHOLE_VERIFY_COOLDOWN_MS) continue;
+    const cd = getPotholeCooldown(p.id);
+    if (cd && now - cd < POTHOLE_DISMISS_COOLDOWN_MS) continue;
+
+    const dist = me.distanceTo(L.latLng(p.lat, p.lng));
+    if (dist <= POTHOLE_NOTIFY_RADIUS_M) {
+      if (typeof showPotholeVerifyToast === "function") {
+        showPotholeVerifyToast(currentProvince, p, Math.round(dist));
+      }
+      return; // one toast at a time
+    }
+  }
+}
 
 /* ================= Driver state, GPS & account ================= */
 
 let currentRole = "user";
 let driverGpsWatchId = null;
-let simulatedPos = [10.034185, 105.72255];
+let simulatedPos = [10.38399, 105.43734];
 
 let driverUser = null;              // Firebase Auth user while a driver is signed in
 let driverPublishedProvince = null; // province whose live/ node currently holds this driver
@@ -947,6 +1247,7 @@ window.onDriverAuthChanged = async function (user) {
     driverPublishedProvince = null;
     stopDriverGpsWatch();
     document.body.classList.remove("driver-mode");
+    if (window.watchPotholesForProvince) window.watchPotholesForProvince(null);
     return;
   }
 
@@ -969,6 +1270,9 @@ window.onDriverAuthChanged = async function (user) {
   document.body.classList.add("driver-mode");
   startDriverGpsWatch();
   UpdateDriverStatus(false);
+  if (window.watchPotholesForProvince && currentProvince) {
+    window.watchPotholesForProvince(currentProvince);
+  }
 };
 
 function syncDriverCarToState(province, car) {
@@ -1038,6 +1342,7 @@ function UpdateDriverStatus(shouldPan = false) {
       status: car.status,
       care: car.care
     });
+    
   }
 
   if (driverGpsWatchId !== null) return;
@@ -1048,14 +1353,15 @@ function UpdateDriverStatus(shouldPan = false) {
   } else {
     setDriverMsg(`Xe (${province}) đang tạm ngưng hoạt động.`, "var(--subtext)");
   }
+  checkNearbyPotholes();
 }
 
 function PublishDriverNow() {
   const provinceEl = document.getElementById("driverProvince");
-  const province = provinceEl ? provinceEl.value : (currentProvince || "Cần Thơ");
+  const province = provinceEl ? provinceEl.value : (currentProvince || "An Giang");
 
   if (!Array.isArray(simulatedPos) || simulatedPos.length < 2) {
-    simulatedPos = [...(PROVINCE_CENTERS[province] || [10.034185, 105.72255])];
+    simulatedPos = [...(PROVINCE_CENTERS[province] || [10.38399, 105.43734])];
   }
 
   const finishPublish = () => {
@@ -1218,3 +1524,20 @@ function onCareChanged() {
     });
   });
 })();
+
+function updateSatSaveButton() {
+  const btn = document.getElementById("savesatbtn");
+  if (!btn) return;
+  btn.style.display = (activeBase === "satellite" && navigator.onLine) ? "flex" : "none";
+}
+
+window.addEventListener("online", () => {
+  updateSatSaveButton();
+  document.body.classList.remove("satellite-offline");
+});
+window.addEventListener("offline", () => {
+  updateSatSaveButton();
+  if (activeBase === "satellite") {
+    document.body.classList.add("satellite-offline");
+  }
+});
